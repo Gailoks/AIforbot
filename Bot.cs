@@ -1,0 +1,7 @@
+namespace TelegramBot
+{
+    class Bot
+    {
+        
+    }
+}
