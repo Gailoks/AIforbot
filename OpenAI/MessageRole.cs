@@ -2,7 +2,6 @@
 {
 	internal enum MessageRole
 	{
-		System,
 		User,
 		Assistant
 	}

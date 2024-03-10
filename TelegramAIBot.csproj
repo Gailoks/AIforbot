@@ -2,10 +2,14 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net7.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <RootNamespace>TelegramAIBot</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Telegram.Bot" Version="19.0.0" />
+  </ItemGroup>
     
 </Project>
