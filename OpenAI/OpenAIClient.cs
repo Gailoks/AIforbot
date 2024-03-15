@@ -15,7 +15,7 @@ namespace TelegramAIBot.OpenAI
 		}
 
 
-		public async Task<ServerResponse<TResponse>> SendMessage<TResponse>(string endpoint, object body, HttpMethod method, Dictionary<string, string>? headers = null)
+		public async Task<ServerResponse<TResponse>> SendMessageAsync<TResponse>(string endpoint, object body, HttpMethod method, Dictionary<string, string>? headers = null)
 			where TResponse : notnull
 		{
 			headers ??= new();
@@ -42,9 +42,14 @@ namespace TelegramAIBot.OpenAI
 				throw new OpenAIApiException(endpoint, request, body, response, responseContent);
 			}
 
-			var responseAsObject = JsonSerializer.Deserialize<TResponse>(responseContent);
+			var responseAsObject = JsonSerializer.Deserialize<TResponse>(responseContent) ?? throw new NullReferenceException();
 
 			return new ServerResponse<TResponse>(responseAsObject, response);
+		}
+
+		public Chat CreateChat()
+		{
+			return new Chat(this);
 		}
 
 
@@ -55,6 +60,6 @@ namespace TelegramAIBot.OpenAI
 			public required string Token { get; init; }
 		}
 
-		public record ServerResponse<TResponse>(TResponse? ResponseBody, HttpResponseMessage RawServerResponse) where TResponse : notnull;
+		public record ServerResponse<TResponse>(TResponse ResponseBody, HttpResponseMessage RawServerResponse) where TResponse : notnull;
 	}
 }
