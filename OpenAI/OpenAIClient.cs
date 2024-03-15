@@ -1,5 +1,6 @@
 ﻿using System.Net.Http.Json;
 using System.Text.Json;
+using System.Text;
 
 namespace TelegramAIBot.OpenAI
 {
@@ -18,17 +19,17 @@ namespace TelegramAIBot.OpenAI
 		public async Task<ServerResponse<TResponse>> SendMessageAsync<TResponse>(string endpoint, object body, HttpMethod method, Dictionary<string, string>? headers = null)
 			where TResponse : notnull
 		{
-			headers ??= new();
-			headers.Add("Authorization", _configuration.Token);
-			headers.Add("Content-Type", "application/json");
+			headers ??= [];
+			headers.Add("Authorization", "Bearer " + _configuration.Token);
 
-			var content = JsonContent.Create(body);
+			var serializedBody = JsonSerializer.Serialize(body);
+            var content = new StringContent(serializedBody, Encoding.UTF8, "application/json");
 
 			var request = new HttpRequestMessage()
 			{
 				Content = content,
 				Method = method,
-				RequestUri = new Uri(_configuration + endpoint)
+				RequestUri = new Uri(_configuration.OpenAIServer + endpoint)
 			};
 
 			foreach (var header in headers)
@@ -36,7 +37,7 @@ namespace TelegramAIBot.OpenAI
 
 			var response = await _httpClient.SendAsync(request);
 			var responseContent = await response.Content.ReadAsStringAsync();
-
+			
 			if (response.IsSuccessStatusCode == false)
 			{
 				throw new OpenAIApiException(endpoint, request, body, response, responseContent);

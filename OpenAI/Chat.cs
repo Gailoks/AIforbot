@@ -49,7 +49,7 @@ namespace TelegramAIBot.OpenAI
 				options = Options;
 				apiMessages = _messages
 					.Select(ApiMessage.FromMessage)
-					.Prepend(new ApiMessage { Role = "system", Content = options.SystemPrompt })
+					.Prepend(new ApiMessage { Role = "system", Content = options.SystemPrompt ?? "You are useful assistant" })
 					.ToArray();
 			}
 
@@ -77,45 +77,43 @@ namespace TelegramAIBot.OpenAI
 		}
 
 
-#nullable disable
 #pragma warning disable CS0649
 		private class ChatCompletionRequestBody
 		{
-			[JsonPropertyName("model")] public string ModelName = "gpt-3.5-turbo";
-			[JsonPropertyName("top_p")] public double TopP = 1.0;
-			[JsonPropertyName("temperature")] public double Temperature = 1.0;
-			[JsonPropertyName("frequency_penalty")] public double FrequencyPenalty = 0.0;
+			[JsonPropertyName("model")] public string ModelName { get; init; } = "gpt-3.5-turbo";
+			[JsonPropertyName("top_p")] public double TopP { get; init; } = 1.0;
+			[JsonPropertyName("temperature")] public double Temperature { get; init; } = 1.0;
+			[JsonPropertyName("frequency_penalty")] public double FrequencyPenalty { get; init; } = 0.0;
 
-			[JsonPropertyName("messages")] public ApiMessage[] Messages;
+			[JsonPropertyName("messages")] public required ApiMessage[] Messages { get; init; }
 		}
 
 		private class ChatCompletionResponseBody
 		{
-			[JsonPropertyName("choices")] public ApiCompletionChoice[] Choices;
+			[JsonPropertyName("choices")] public required ApiCompletionChoice[] Choices { get; init; }
 		}
 
 		private class ApiCompletionChoice
 		{
-			[JsonPropertyName("index")] public int Index;
-			[JsonPropertyName("message")] public ApiMessage Message;
+			[JsonPropertyName("index")] public int Index { get; init; }
+			[JsonPropertyName("message")] public required ApiMessage Message { get; init; }
 		}
 
 		private class ApiMessage
 		{
-			[JsonPropertyName("role")] public string Role = string.Empty;
-			[JsonPropertyName("content")] public string Content = string.Empty;
+			[JsonPropertyName("role")] public string Role { get; init; } = string.Empty;
+			[JsonPropertyName("content")] public string Content { get; init; } = string.Empty;
 
 
 			public static ApiMessage FromMessage(Message message)
 			{
 				if (message.Content.IsPresentableAsString)
 				{
-					return new ApiMessage { Role = message.Role.ToString(), Content = message.Content.PresentAsString() };
+					return new ApiMessage { Role = message.Role.ToString().ToLower(), Content = message.Content.PresentAsString() };
 				}
 				else throw new NotSupportedException("Enable to work with non PresentableAsString message content");
 			}
 		}
 #pragma warning restore CS0649
-#nullable restore
 	}
 }
