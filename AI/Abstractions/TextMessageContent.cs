@@ -1,4 +1,4 @@
-﻿namespace TelegramAIBot.OpenAI
+﻿namespace TelegramAIBot.AI.Abstractions
 {
 	internal sealed class TextMessageContent : MessageContent
 	{

@@ -1,10 +1,10 @@
-﻿using System.Net.Http.Json;
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text;
+using TelegramAIBot.AI.Abstractions;
 
-namespace TelegramAIBot.OpenAI
+namespace TelegramAIBot.AI.OpenAI
 {
-	internal sealed class OpenAIClient
+	internal sealed class OpenAIClient : IAIClient
 	{
 		private readonly Configuration _configuration;
 		private readonly HttpClient _httpClient = new();
@@ -23,7 +23,7 @@ namespace TelegramAIBot.OpenAI
 			headers.Add("Authorization", "Bearer " + _configuration.Token);
 
 			var serializedBody = JsonSerializer.Serialize(body);
-            var content = new StringContent(serializedBody, Encoding.UTF8, "application/json");
+			var content = new StringContent(serializedBody, Encoding.UTF8, "application/json");
 
 			var request = new HttpRequestMessage()
 			{
@@ -37,7 +37,7 @@ namespace TelegramAIBot.OpenAI
 
 			var response = await _httpClient.SendAsync(request);
 			var responseContent = await response.Content.ReadAsStringAsync();
-			
+
 			if (response.IsSuccessStatusCode == false)
 			{
 				throw new OpenAIApiException(endpoint, request, body, response, responseContent);
@@ -48,7 +48,7 @@ namespace TelegramAIBot.OpenAI
 			return new ServerResponse<TResponse>(responseAsObject, response);
 		}
 
-		public Chat CreateChat()
+		public IChat CreateChat()
 		{
 			return new Chat(this);
 		}

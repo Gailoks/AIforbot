@@ -1,4 +1,4 @@
-﻿namespace TelegramAIBot.OpenAI
+﻿namespace TelegramAIBot.AI.Abstractions
 {
 	internal sealed record class ChatCompletionOptions(
 		string ModelName = "gpt-3.5-turbo",

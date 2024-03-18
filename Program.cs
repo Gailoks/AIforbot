@@ -1,4 +1,6 @@
-﻿using TelegramAIBot.OpenAI;
+﻿using TelegramAIBot.AI.Abstractions;
+using TelegramAIBot.AI.Gug;
+using TelegramAIBot.AI.OpenAI;
 
 namespace TelegramAIBot
 {
@@ -6,14 +8,29 @@ namespace TelegramAIBot
 	{
 		public static async Task Main(string[] args)
 		{
-			var openAIClient = new OpenAIClient(new OpenAIClient.Configuration
+			IAIClient client;
+
+		tryAgain:
+			Console.Write("You wanna use real openAI client or gug? [gug|real]: ");
+			var ans = Console.ReadLine();
+
+			if (ans == "gug")
 			{
-				Token = "no-key",
-				OpenAIServer="http://192.168.2.106:8080/"
+				client = new GugClient() { ChatCompletionCreationOperationDuration = TimeSpan.FromSeconds(4) };
+			}
+			else if (ans == "real")
+			{
+				client = new OpenAIClient(new OpenAIClient.Configuration
+				{
+					Token = "no-key",
+					OpenAIServer = "http://192.168.2.106:8080/"
 
-			});
+				});
+			}
+			else goto tryAgain;
 
-			var chat = openAIClient.CreateChat();
+
+			var chat = client.CreateChat();
 
 			chat.Options = new(
 				ModelName: "gpt-3.5-turbo",
@@ -21,12 +38,12 @@ namespace TelegramAIBot
 			);
 
 
-			chat.AddMessage(new Message(MessageRole.User, new TextMessageContent("Hello assistance, who are you")));
+			chat.ModifyMessages(s => s.Add(new Message(MessageRole.User, new TextMessageContent("Hello assistance, who are you"))));
 
 			while (true)
 			{
 				var userInput = Console.ReadLine() ?? string.Empty;
-				chat.AddMessage(new Message(MessageRole.User, new TextMessageContent(userInput)));
+				chat.ModifyMessages(s => s.Add(new Message(MessageRole.User, new TextMessageContent(userInput))));
 				
 				var response = await chat.CreateChatCompletionAsync();
 

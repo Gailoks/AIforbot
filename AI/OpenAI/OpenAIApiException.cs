@@ -1,4 +1,4 @@
-﻿namespace TelegramAIBot.OpenAI
+﻿namespace TelegramAIBot.AI.OpenAI
 {
 	internal class OpenAIApiException : Exception
 	{

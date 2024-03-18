@@ -1,6 +1,6 @@
 ﻿using FluentValidation;
 
-namespace TelegramAIBot.OpenAI
+namespace TelegramAIBot.AI.Abstractions
 {
 	internal sealed class ChatCompletionOptionsValidator : AbstractValidator<ChatCompletionOptions>
 	{
