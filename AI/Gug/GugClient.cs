@@ -4,12 +4,12 @@ namespace TelegramAIBot.AI.Gug
 {
 	internal sealed class GugClient : IAIClient
 	{
-		public TimeSpan? ChatCompletionCreationOperationDuration { get; init; } = null;
+		private readonly Configuration _configuration;
 
 
-		public GugClient()
+		public GugClient(Configuration configuration)
 		{
-
+			_configuration = configuration;
 		}
 
 
@@ -17,8 +17,14 @@ namespace TelegramAIBot.AI.Gug
 		{
 			return new GugChat()
 			{
-				ChatCompletionCreationOperationDuration = ChatCompletionCreationOperationDuration
+				ChatCompletionCreationOperationDuration = _configuration.ChatCompletionCreationOperationDuration
 			};
+		}
+
+
+		public class Configuration
+		{
+			public TimeSpan? ChatCompletionCreationOperationDuration { get; init; } = null;
 		}
 	}
 }

@@ -1,6 +1,8 @@
-﻿using TelegramAIBot.AI.Abstractions;
+﻿using Microsoft.Extensions.Configuration;
+using TelegramAIBot.AI.Abstractions;
 using TelegramAIBot.AI.Gug;
 using TelegramAIBot.AI.OpenAI;
+using TomLonghurst.ReadableTimeSpan;
 
 namespace TelegramAIBot
 {
@@ -8,6 +10,11 @@ namespace TelegramAIBot
 	{
 		public static async Task Main(string[] args)
 		{
+			ReadableTimeSpan.EnableConfigurationBinding();
+
+			var config = new ConfigurationBuilder().AddJsonFile("config.json").Build();
+
+
 			IAIClient client;
 
 		tryAgain:
@@ -16,16 +23,18 @@ namespace TelegramAIBot
 
 			if (ans == "gug")
 			{
-				client = new GugClient() { ChatCompletionCreationOperationDuration = TimeSpan.FromSeconds(4) };
+				GugClient.Configuration configuration = config.GetSection("AI:Gug").Get<GugClient.Configuration>()
+					?? throw new Exception("No configuration found for gug client. Fix it in config.json file [AI:Gug]");
+
+				client = new GugClient(configuration);
+
 			}
 			else if (ans == "real")
 			{
-				client = new OpenAIClient(new OpenAIClient.Configuration
-				{
-					Token = "no-key",
-					OpenAIServer = "http://192.168.2.106:8080/"
+				OpenAIClient.Configuration configuration = config.GetSection("AI:OpenAI").Get<OpenAIClient.Configuration>()
+					?? throw new Exception("No configuration found for openAI client. Fix it in config.json file [AI:OpenAI]");
 
-				});
+				client = new OpenAIClient(configuration);
 			}
 			else goto tryAgain;
 
