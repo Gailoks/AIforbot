@@ -1,39 +1,50 @@
 using Telegram.Bot;
+using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 namespace TelegramAIBot.Telegram 
 {
-    class TelegramHandler
-    {
-        TelegramBotClient _client;
-        public TelegramHandler(TelegramBotClient client)
-        {
-            _client = client;
-        }
-        public void StartPooling()
-        {
-            _client.StartReceiving(HandleUpdates,HandleError);
-        }
-        private async Task HandleError(ITelegramBotClient botClient,Exception exception,CancellationToken cancellationToken)
-        {
-            return;
-        }
+	class TelegramHandler
+	{
+		private readonly TelegramBotClient _client;
+		private readonly ITelegramModule _module;
 
-		private async Task HandleUpdates(ITelegramBotClient botClient,Update update,CancellationToken cancellationToken)
-        {
-            switch (update.Type)
-            {
-                case UpdateType.Message:
-                
-                break;
-                
-                case UpdateType.CallbackQuery:
-                
-                break;
 
-                default:
-                break;
-            }
-        }
-    }
+		public TelegramHandler(TelegramBotClient client, ITelegramModule module)
+		{
+			_client = client;
+			_module = module;
+		}
+
+
+		public void StartPooling()
+		{
+			ReceiverOptions receiverOptions = new()
+			{
+				AllowedUpdates = []
+			};
+
+			_client.StartReceiving(HandleUpdateAsync, HandleErrorAsync, receiverOptions);
+		}
+
+		private Task HandleErrorAsync(ITelegramBotClient botClient, Exception exception, CancellationToken cancellationToken)
+		{
+			//TODO: add logging
+			return Task.CompletedTask;
+		}
+
+		private async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+		{
+			switch (update.Type)
+			{
+				case UpdateType.Message:
+					await _module.ProcessUserMessageAsync(update.Message!, cancellationToken);
+				break;
+				
+				case UpdateType.CallbackQuery:
+					await _module.ProcessUserCallbackAsync(update.CallbackQuery!, cancellationToken);
+				break;
+			}
+		}
+	}
 }
