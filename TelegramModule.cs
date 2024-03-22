@@ -2,7 +2,7 @@ using System.Collections.Concurrent;
 using Telegram.Bot;
 using TelegramAIBot.AI.Abstractions;
 using TelegramAIBot.Telegram;
-
+using Telegram.Bot.Types.Enums;
 using TGMessage = Telegram.Bot.Types.Message;
 using AIMessage = TelegramAIBot.AI.Abstractions.Message;
 
@@ -32,7 +32,7 @@ namespace TelegramAIBot
 			var response = await chat.CreateChatCompletionAsync();
 			chat.ModifyMessages(s => s.Add(response));
 
-			await Client.NativeClient.SendTextMessageAsync(message.Chat, response.Content.PresentAsString(), cancellationToken: ct);
+			await Client.NativeClient.SendTextMessageAsync(message.Chat, response.Content.PresentAsString(), cancellationToken: ct,parseMode:ParseMode.Markdown);
 		}
 
 		public async Task Start(TGMessage message, CancellationToken ct)
@@ -42,9 +42,14 @@ namespace TelegramAIBot
 		}
 
 		public async Task Restart(TGMessage message, CancellationToken ct)
-		{
-			_chats.TryRemove(message.Chat.Id, out _);
-			await Client.NativeClient.SendTextMessageAsync(message.Chat, "Bot restarted successfully", cancellationToken: ct);
+		{	
+			_chats.TryGetValue(message.Chat.Id,out var chat); // Он не удаляет чат а только чистит историю
+			if(chat == null) await Start(message,ct);
+			else
+			{
+				chat.ModifyMessages(s => [s[0]]);
+				await Client.NativeClient.SendTextMessageAsync(message.Chat, "Bot restarted successfully", cancellationToken: ct);
+			}
 		}
 
 		private IChat GetChat(long userId)
