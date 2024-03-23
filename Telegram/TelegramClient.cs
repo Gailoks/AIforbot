@@ -24,6 +24,8 @@ namespace TelegramAIBot.Telegram
 
 		public TelegramBotClient NativeClient => _nativeClient;
 
+		public Configuration ActiveConfiguration => _configuration;
+
 
 		public void Start()
 		{

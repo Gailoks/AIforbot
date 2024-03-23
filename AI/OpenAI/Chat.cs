@@ -1,4 +1,5 @@
-using System.Text.Json.Serialization;
+using System.Data;
+using System.Dynamic;
 using TelegramAIBot.AI.Abstractions;
 
 namespace TelegramAIBot.AI.OpenAI
@@ -16,79 +17,67 @@ namespace TelegramAIBot.AI.OpenAI
 
 		protected override async Task<Message> CreateChatCompletionAsyncInternal()
 		{
-			ChatCompletionOptions options;
-			ApiMessage[] apiMessages;
+			ChatCompletionOptions options = Options;
 
-			options = Options;
-			apiMessages = Messages
-				.Select(ApiMessage.FromMessage)
-				.Prepend(new ApiMessage { Role = "system", Content = options.SystemPrompt ?? "You are useful assistant" })
+			var visitor = new ContentVisitor();
+			var apiMessages = Messages
+				.Select(msg =>
+				{
+					var apiMessageContent = msg.Contents.Select(s => s.Visit(visitor));
+
+					return new
+					{
+						content = apiMessageContent,
+						role = msg.Role.ToString().ToLower()
+					};
+				})
+				.Prepend(new { content = (IEnumerable<object>)new object[] { options.SystemPrompt ?? "You are useful assistant" }, role = "system" })
 				.ToArray();
 
-			var request = new ChatCompletionRequestBody
+			var request =
+			new
 			{
-				FrequencyPenalty = options.FrequencyPenalty,
-				TopP = options.TopP,
-				Temperature = options.Temperature,
-				ModelName = options.ModelName,
+				frequencyPenalty = options.FrequencyPenalty,
+				top_p = options.TopP,
+				temperature = options.Temperature,
+				model = options.ModelName,
 
-				Messages = apiMessages
+				messages = apiMessages
 			};
 
-			var response = await _client.SendMessageAsync<ChatCompletionResponseBody>("v1/chat/completions", request, HttpMethod.Post);
+			var response = await _client.SendMessageAsync<ExpandoObject>("v1/chat/completions", request, HttpMethod.Post);
 
-			var choice = response.ResponseBody.Choices.FirstOrDefault() ?? throw new Exception("No choices provided by OpenAI server");
+			dynamic choice = response.ResponseBody;
+			var content = choice.choices[0].message.content;
 
-			var apiMessage = choice.Message;
-
-			var message = new Message(MessageRole.Assistant, new TextMessageContent(apiMessage.Content));
+			var message = new Message(MessageRole.Assistant, new TextMessageContent(content));
 
 			return message;
 		}
 
 
-#pragma warning disable CS0649
-		private class ChatCompletionRequestBody
+		private class ContentVisitor : IMessageContentVisitor<object>
 		{
-			[JsonPropertyName("model")] public string ModelName { get; init; } = "gpt-3.5-turbo";
-
-			[JsonPropertyName("top_p")] public double TopP { get; init; } = 1.0;
-
-			[JsonPropertyName("temperature")] public double Temperature { get; init; } = 1.0;
-
-			[JsonPropertyName("frequency_penalty")] public double FrequencyPenalty { get; init; } = 0.0;
-
-			[JsonPropertyName("messages")] public required ApiMessage[] Messages { get; init; }
-		}
-
-		private class ChatCompletionResponseBody
-		{
-			[JsonPropertyName("choices")] public required ApiCompletionChoice[] Choices { get; init; }
-		}
-
-		private class ApiCompletionChoice
-		{
-			[JsonPropertyName("index")] public int Index { get; init; }
-
-			[JsonPropertyName("message")] public required ApiMessage Message { get; init; }
-		}
-
-		private class ApiMessage
-		{
-			[JsonPropertyName("role")] public string Role { get; init; } = string.Empty;
-
-			[JsonPropertyName("content")] public string Content { get; init; } = string.Empty;
-
-
-			public static ApiMessage FromMessage(Message message)
+			public object VisitImage(ImageMessageContent imageContent)
 			{
-				if (message.Content.IsPresentableAsString)
+				return new
 				{
-					return new ApiMessage { Role = message.Role.ToString().ToLower(), Content = message.Content.PresentAsString() };
-				}
-				else throw new NotSupportedException("Enable to work with non PresentableAsString message content");
+					type = "image_url",
+					image_url = new
+					{
+						url = imageContent.Url
+					}
+				};
+			}
+
+			public object VisitText(TextMessageContent textContent)
+			{
+				return new
+				{
+					type = "text",
+					text = textContent.Text
+				};
 			}
 		}
-#pragma warning restore CS0649
 	}
 }

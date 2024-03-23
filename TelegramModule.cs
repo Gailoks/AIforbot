@@ -5,7 +5,8 @@ using TelegramAIBot.Telegram;
 using Telegram.Bot.Types.Enums;
 using TGMessage = Telegram.Bot.Types.Message;
 using AIMessage = TelegramAIBot.AI.Abstractions.Message;
-using Telegram.Bot.Types.ReplyMarkups;
+using File = Telegram.Bot.Types.File;
+using Telegram.Bot.Types;
 
 namespace TelegramAIBot
 {
@@ -29,12 +30,29 @@ namespace TelegramAIBot
 		{
 			var chat = GetChat(message.Chat.Id);
 
-			chat.ModifyMessages(s => s.Add(new AIMessage(MessageRole.User, new TextMessageContent(text))));
+			chat.ModifyMessages(s => s.Add(new AIMessage(MessageRole.User, [new TextMessageContent(text)])));
 
-			var response = await chat.CreateChatCompletionAsync();
-			chat.ModifyMessages(s => s.Add(response));
+			await CreateCompletionAndRespondAsync(message.Chat, chat, ct);
+		}
 
-			await Client.NativeClient.SendTextMessageAsync(message.Chat, response.Content.PresentAsString(), cancellationToken: ct,parseMode:ParseMode.Markdown);
+		public override async Task HandlePhotoAsync(TGMessage message, PhotoSize[] photos, CancellationToken ct)
+		{
+			var photo = photos.OrderByDescending(s => s.Width * s.Height).First();
+
+			File fileInfo = await Client.NativeClient.GetFileAsync(photo.FileId, ct);
+			var url = $"https://api.telegram.org/file/bot{Client.ActiveConfiguration.Token}/{fileInfo.FilePath}";
+			IChat chat = GetChat(message.Chat.Id);
+
+			var caption = message.Caption;
+
+			chat.ModifyMessages(s =>
+			{
+				if (caption is not null)
+					return s.Add(new AIMessage(MessageRole.User, [new ImageMessageContent(url), new TextMessageContent(caption)]));
+				else return s.Add(new AIMessage(MessageRole.User, new ImageMessageContent(url)));
+			});
+
+			await CreateCompletionAndRespondAsync(message.Chat, chat, ct);
 		}
 
 		public async Task Start(TGMessage message, CancellationToken ct)
@@ -44,21 +62,16 @@ namespace TelegramAIBot
 		}
 
 		public async Task Restart(TGMessage message, CancellationToken ct)
-		{	
-			_chats.TryGetValue(message.Chat.Id,out var chat); // Он не удаляет чат а только чистит историю
-			if(chat == null) await Start(message,ct);
-			else
-			{
-				chat.ModifyMessages(s => [s[0]]);
-				await Client.NativeClient.SendTextMessageAsync(message.Chat, "Bot restarted successfully", cancellationToken: ct);
-			}
+		{
+			GetChat(message.Chat.Id).ModifyMessages(s => s.Clear());
+			await Client.NativeClient.SendTextMessageAsync(message.Chat, "Bot restarted successfully", cancellationToken: ct);
 		}
 
 		public async Task Settings(TGMessage message, CancellationToken ct)
 		{
-			var chat = GetChat(message.Chat.Id);
-			await Client.NativeClient.SendTextMessageAsync(message.Chat, "Here is some settings",replyMarkup:new TelegramAIBot.Telegram.Keyboards.SettingsKeyboard().KeyboardMarkup);
+			await Client.NativeClient.SendTextMessageAsync(message.Chat, "Here is some settings", replyMarkup: new Telegram.Keyboards.SettingsKeyboard().KeyboardMarkup, cancellationToken: ct);
 		}
+
 		private IChat GetChat(long userId)
 		{
 			return _chats.GetOrAdd(userId, (userID) =>
@@ -72,6 +85,14 @@ namespace TelegramAIBot
 
 				return chat;
 			});
+		}
+
+		private async Task CreateCompletionAndRespondAsync(ChatId tgChat, IChat chat, CancellationToken ct)
+		{
+			var response = await chat.CreateChatCompletionAsync();
+			chat.ModifyMessages(s => s.Add(response));
+
+			await Client.NativeClient.SendTextMessageAsync(tgChat, response.Contents[0].PresentAsString(), cancellationToken: ct, parseMode: ParseMode.Markdown);
 		}
 	}
 }

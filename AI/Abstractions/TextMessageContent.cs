@@ -13,10 +13,17 @@
 
 		public override bool IsPresentableAsString => true;
 
+		public string Text => _text;
+
 
 		public override string PresentAsString()
 		{
 			return _text;
+		}
+
+		public override TResult Visit<TResult>(IMessageContentVisitor<TResult> visitor)
+		{
+			return visitor.VisitText(this);
 		}
 	}
 }

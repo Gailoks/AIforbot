@@ -15,11 +15,16 @@ namespace TelegramAIBot.AI.Gug
 			var messages = Messages;
 			var lastMessage = messages[messages.Count - 1];
 
+			var lastMessageContentsPreview = string.Join('\n',
+				lastMessage.Contents.Select(s => $"- `{(s.IsPresentableAsString ? s.PresentAsString() : "Unable to present as string")}`"));
+
 			var result = new Message(MessageRole.Assistant, new TextMessageContent(
 				$"""
 				Answer of Assistant to previous message
-				Previous message: {(lastMessage.Content.IsPresentableAsString ? lastMessage.Content.PresentAsString() : "Unable to present as string")}
-				Options: {Options}
+				Previous message:
+				{lastMessageContentsPreview}
+
+				Options: `{Options}`
 				"""
 			));
 
