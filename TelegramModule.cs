@@ -5,6 +5,7 @@ using TelegramAIBot.Telegram;
 using Telegram.Bot.Types.Enums;
 using TGMessage = Telegram.Bot.Types.Message;
 using AIMessage = TelegramAIBot.AI.Abstractions.Message;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace TelegramAIBot
 {
@@ -20,6 +21,7 @@ namespace TelegramAIBot
 
 			RegisterCommand("start", Start);
 			RegisterCommand("restart", Restart);
+			RegisterCommand("settings",Settings);
 		}
 
 
@@ -52,6 +54,11 @@ namespace TelegramAIBot
 			}
 		}
 
+		public async Task Settings(TGMessage message, CancellationToken ct)
+		{
+			var chat = GetChat(message.Chat.Id);
+			await Client.NativeClient.SendTextMessageAsync(message.Chat, "Here is some settings",replyMarkup:new TelegramAIBot.Telegram.Keyboards.SettingsKeyboard().KeyboardMarkup);
+		}
 		private IChat GetChat(long userId)
 		{
 			return _chats.GetOrAdd(userId, (userID) =>
