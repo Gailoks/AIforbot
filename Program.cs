@@ -20,7 +20,7 @@ namespace TelegramAIBot
 
 		tryAgain:
 			Console.Write("You wanna use real openAI client or gug? [gug|real]: ");
-			var ans = Console.ReadLine();
+			var ans = "real";
 
 			if (ans == "gug")
 			{

@@ -48,7 +48,7 @@ namespace TelegramAIBot
 			chat.ModifyMessages(s =>
 			{
 				if (caption is not null)
-					return s.Add(new AIMessage(MessageRole.User, [new ImageMessageContent(url), new TextMessageContent(caption)]));
+					return s.Add(new AIMessage(MessageRole.User, new ImageMessageContent(url))).Add(new AIMessage(MessageRole.User, new TextMessageContent(caption)));
 				else return s.Add(new AIMessage(MessageRole.User, new ImageMessageContent(url)));
 			});
 
