@@ -6,18 +6,34 @@ using Telegram.Bot.Types.Enums;
 using TGMessage = Telegram.Bot.Types.Message;
 using AIMessage = TelegramAIBot.AI.Abstractions.Message;
 using Telegram.Bot.Types;
+using TelegramAIBot.UserData;
+using Telegram.Bot.Types.ReplyMarkups;
+using FluentValidation;
+using System.Globalization;
 
 namespace TelegramAIBot
 {
 	internal class TelegramModule : TelegramModuleBase
 	{
-		private readonly ConcurrentDictionary<long, IChat> _chats = [];
+		private readonly ConcurrentDictionary<long, UserState> _users = [];
 		private readonly IAIClient _aiClient;
+		private readonly IUserDataRepository _userDataRepository;
+		private readonly IValidator<ChatCompletionOptions> _chatCompletionOptionsValidator = new ChatCompletionOptionsValidator();
 
 
-		public TelegramModule(IAIClient aiClient)
+		private readonly InlineKeyboardMarkup _settingsKeyboardMarkup = new(
+		[
+			[InlineKeyboardButton.WithCallbackData("Change system prompt", "Ssystem_prompt")],
+			[InlineKeyboardButton.WithCallbackData("Change temp", "Stemperature")],
+			[InlineKeyboardButton.WithCallbackData("Change top p", "Stop_p")],
+			[InlineKeyboardButton.WithCallbackData("Change frequency penalty", "Sfrequency_penalty")]
+		]);
+
+
+		public TelegramModule(IAIClient aiClient, IUserDataRepository userDataRepository)
 		{
 			_aiClient = aiClient;
+			_userDataRepository = userDataRepository;
 
 			RegisterCommand("start", Start);
 			RegisterCommand("restart", Restart);
@@ -25,50 +41,101 @@ namespace TelegramAIBot
 		}
 
 
-		public override async Task HandleTextMessageAsync(TGMessage message, string text, CancellationToken ct)
+		protected override async Task HandleTextMessageAsync(TGMessage message, string text, CancellationToken ct)
 		{
-			var chat = GetChat(message.Chat.Id);
+			var state = GetState(message.Chat.Id);
+
+			if (state.ActiveParameterToChange is not null)
+			{
+				using var holder = _userDataRepository.Get<UserSettings>(UserSettings.StorageId);
+				try
+				{
+					var so = holder.Object;
+					var culture = new CultureInfo("en");
+
+					switch (state.ActiveParameterToChange)
+					{
+						case "system_prompt":
+							holder.Object = so with { Options = so.Options with { SystemPrompt = text } };
+							break;
+
+						case "temperature":
+							holder.Object = so with { Options = so.Options with { Temperature = double.Parse(text, culture) } };
+							break;
+
+						case "top_p":
+							holder.Object = so with { Options = so.Options with { TopP = double.Parse(text, culture) } };
+							break;
+
+						case "frequency_penalty":
+							holder.Object = so with { Options = so.Options with { FrequencyPenalty = double.Parse(text, culture) } };
+							break;
+
+						default:
+							break;
+					}
+
+					_chatCompletionOptionsValidator.ValidateAndThrow(holder.Object.Options);
+
+					await Client.NativeClient.SendTextMessageAsync(message.Chat, "Change ok", cancellationToken: ct);
+				}
+				catch (Exception)
+				{
+					await Client.NativeClient.SendTextMessageAsync(message.Chat, "Invalid parameter value", cancellationToken: ct);
+				}
+
+				state.ActiveParameterToChange = null;
+				return;
+			}
+
+			var chat = state.Chat;
 
 			chat.ModifyMessages(s => s.Add(new AIMessage(MessageRole.User, new TextMessageContent(text))));
 
 			await CreateCompletionAndRespondAsync(message.Chat, chat, ct);
 		}
 
-		public async Task Start(TGMessage message, CancellationToken ct)
+		private async Task Start(TGMessage message, CancellationToken ct)
 		{
-			_chats.TryRemove(message.Chat.Id, out _);
+			_users.TryRemove(message.Chat.Id, out _);
 			await Client.NativeClient.SendTextMessageAsync(message.Chat, "Bot started successfully", cancellationToken: ct);
 		}
 
-		public async Task Restart(TGMessage message, CancellationToken ct)
+		private async Task Restart(TGMessage message, CancellationToken ct)
 		{
-			GetChat(message.Chat.Id).ModifyMessages(s => s.Clear());
+			GetState(message.Chat.Id).Chat.ModifyMessages(s => s.Clear());
 			await Client.NativeClient.SendTextMessageAsync(message.Chat, "Bot restarted successfully", cancellationToken: ct);
 		}
 
-		public async Task Settings(TGMessage message, CancellationToken ct)
+		private async Task Settings(TGMessage message, CancellationToken ct)
 		{
-			await Client.NativeClient.SendTextMessageAsync(message.Chat, "Here is some settings", replyMarkup: new Telegram.Keyboards.SettingsKeyboard().KeyboardMarkup, cancellationToken: ct);
+			await Client.NativeClient.SendTextMessageAsync(message.Chat, "Settings list:", replyMarkup: _settingsKeyboardMarkup, cancellationToken: ct);
 		}
 
-		private IChat GetChat(long userId)
+		public async override Task ProcessUserCallbackAsync(CallbackQuery callback, CancellationToken ct)
 		{
-			return _chats.GetOrAdd(userId, (userID) =>
+			var data = callback.Data;
+			if (data is not null && data.StartsWith('S'))
 			{
-				var chat = _aiClient.CreateChat();
+				var state = GetState(callback.From.Id);
+				state.ActiveParameterToChange = data[1..];
+				await Client.NativeClient.SendTextMessageAsync(callback.From.Id, "Please enter new value for paramter", cancellationToken: ct);
+			}
+		}
 
-				chat.Options = new(
-					ModelName: "gpt-3.5-turbo",
-					SystemPrompt: "You are useful assistance"
-				);
-
-				return chat;
-			});
+		private UserState GetState(long userId)
+		{
+			return _users.GetOrAdd(userId, (userID) => new UserState(_aiClient.CreateChat()));
 		}
 
 		private async Task CreateCompletionAndRespondAsync(ChatId tgChat, IChat chat, CancellationToken ct)
 		{
 			var preMessage = await Client.NativeClient.SendTextMessageAsync(tgChat, "Generating, please wait", cancellationToken: ct);
+
+			using (var holder = _userDataRepository.Get<UserSettings>(UserSettings.StorageId))
+			{
+				chat.Options = holder.Object.Options;
+			}
 
 			var task = chat.CreateChatCompletionAsync();
 
@@ -78,6 +145,20 @@ namespace TelegramAIBot
 			chat.ModifyMessages(s => s.Add(response));
 
 			await Client.NativeClient.EditMessageTextAsync(tgChat, preMessage.MessageId, response.Content.PresentAsString(), cancellationToken: ct, parseMode: ParseMode.Markdown);
+		}
+
+
+		private class UserState
+		{
+			public UserState(IChat chat)
+			{
+				Chat = chat;
+			}
+
+
+			public string? ActiveParameterToChange { get; set; }
+
+			public IChat Chat { get; }
 		}
 	}
 }

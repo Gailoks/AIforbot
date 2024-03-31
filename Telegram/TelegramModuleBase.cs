@@ -48,15 +48,15 @@ namespace TelegramAIBot.Telegram
 		}
 
 
-		public virtual Task HandleTextMessageAsync(Message message, string text, CancellationToken ct) => Task.CompletedTask;
+		protected virtual Task HandleTextMessageAsync(Message message, string text, CancellationToken ct) => Task.CompletedTask;
 
-		public virtual Task HandleDocumentAsync(Message message, Document document, CancellationToken ct) => Task.CompletedTask;
+		protected virtual Task HandleDocumentAsync(Message message, Document document, CancellationToken ct) => Task.CompletedTask;
 
-		public virtual Task HandlePhotoAsync(Message message, PhotoSize[] photos, CancellationToken ct) => Task.CompletedTask;
+		protected virtual Task HandlePhotoAsync(Message message, PhotoSize[] photos, CancellationToken ct) => Task.CompletedTask;
 
 		public virtual Task ProcessUserCallbackAsync(CallbackQuery callback, CancellationToken ct) => Task.CompletedTask;
 
-		public virtual async Task HandleInvalidCommandAsync(Message message, CancellationToken ct)
+		protected virtual async Task HandleInvalidCommandAsync(Message message, CancellationToken ct)
 		{
 			await Client.NativeClient.SendTextMessageAsync(message.Chat, $"Unknown command {message.Text}", cancellationToken: ct);
 		}
