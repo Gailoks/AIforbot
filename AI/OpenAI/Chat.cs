@@ -59,11 +59,7 @@ namespace TelegramAIBot.AI.OpenAI
 		{
 			public object VisitText(TextMessageContent textContent)
 			{
-				return new
-				{
-					type = "text",
-					text = textContent.Text
-				};
+				return textContent.Text;
 			}
 		}
 	}
