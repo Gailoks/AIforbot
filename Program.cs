@@ -18,27 +18,21 @@ namespace TelegramAIBot
 
 			IAIClient aiClient;
 
-		tryAgain:
-			Console.Write("You wanna use real openAI client or gug? [gug|real]: ");
-			var ans = "real";
 
-			if (ans == "gug")
+			if (args.Contains("--useGugClient"))
 			{
 				GugClient.Configuration configuration = config.GetSection("AI:Gug").Get<GugClient.Configuration>()
 					?? throw new Exception("No configuration found for gug client. Fix it in config.json file [AI:Gug]");
 
 				aiClient = new GugClient(configuration);
-
 			}
-			else if (ans == "real")
+			else
 			{
 				OpenAIClient.Configuration configuration = config.GetSection("AI:OpenAI").Get<OpenAIClient.Configuration>()
 					?? throw new Exception("No configuration found for openAI client. Fix it in config.json file [AI:OpenAI]");
 
 				aiClient = new OpenAIClient(configuration);
 			}
-			else goto tryAgain;
-
 
 
 			var module = new TelegramModule(aiClient);

@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "TelegramAIBot (Gug)": {
+      "commandName": "Project",
+      "commandLineArgs": "--useGugClient"
+    },
+    "TelegramAIBot (Real)": {
+      "commandName": "Project",
+      "commandLineArgs": ""
+    }
+  }
+}

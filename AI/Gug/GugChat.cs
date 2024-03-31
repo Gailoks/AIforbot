@@ -1,7 +1,4 @@
-﻿using FluentValidation;
-using System.Collections.Immutable;
-using TelegramAIBot.AI.Abstractions;
-using TelegramAIBot.AI.OpenAI;
+﻿using TelegramAIBot.AI.Abstractions;
 
 namespace TelegramAIBot.AI.Gug
 {
@@ -13,16 +10,13 @@ namespace TelegramAIBot.AI.Gug
 		protected override async Task<Message> CreateChatCompletionAsyncInternal()
 		{
 			var messages = Messages;
-			var lastMessage = messages[messages.Count - 1];
-
-			var lastMessageContentsPreview = string.Join('\n',
-				lastMessage.Contents.Select(s => $"- `{(s.IsPresentableAsString ? s.PresentAsString() : "Unable to present as string")}`"));
+			var lastMessageContent = messages[messages.Count - 1].Content;
 
 			var result = new Message(MessageRole.Assistant, new TextMessageContent(
 				$"""
 				Answer of Assistant to previous message
 				Previous message:
-				{lastMessageContentsPreview}
+				`{(lastMessageContent.IsPresentableAsString ? lastMessageContent.PresentAsString() : "Unable to present as string")}`
 
 				Options: `{Options}`
 				"""

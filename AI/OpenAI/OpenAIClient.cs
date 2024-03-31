@@ -1,6 +1,7 @@
 ﻿using System.Text.Json;
 using System.Text;
 using TelegramAIBot.AI.Abstractions;
+using Newtonsoft.Json;
 
 namespace TelegramAIBot.AI.OpenAI
 {
@@ -22,7 +23,7 @@ namespace TelegramAIBot.AI.OpenAI
 			headers ??= [];
 			headers.Add("Authorization", "Bearer " + _configuration.Token);
 
-			var serializedBody = JsonSerializer.Serialize(body);
+			var serializedBody = JsonConvert.SerializeObject(body);
 			var content = new StringContent(serializedBody, Encoding.UTF8, "application/json");
 
 			var request = new HttpRequestMessage()
@@ -43,7 +44,7 @@ namespace TelegramAIBot.AI.OpenAI
 				throw new OpenAIApiException(endpoint, request, body, response, responseContent);
 			}
 
-			var responseAsObject = JsonSerializer.Deserialize<TResponse>(responseContent) ?? throw new NullReferenceException();
+			var responseAsObject = JsonConvert.DeserializeObject<TResponse>(responseContent) ?? throw new NullReferenceException();
 
 			return new ServerResponse<TResponse>(responseAsObject, response);
 		}

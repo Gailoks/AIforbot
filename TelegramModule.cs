@@ -5,7 +5,6 @@ using TelegramAIBot.Telegram;
 using Telegram.Bot.Types.Enums;
 using TGMessage = Telegram.Bot.Types.Message;
 using AIMessage = TelegramAIBot.AI.Abstractions.Message;
-using File = Telegram.Bot.Types.File;
 using Telegram.Bot.Types;
 
 namespace TelegramAIBot
@@ -30,27 +29,7 @@ namespace TelegramAIBot
 		{
 			var chat = GetChat(message.Chat.Id);
 
-			chat.ModifyMessages(s => s.Add(new AIMessage(MessageRole.User, [new TextMessageContent(text)])));
-
-			await CreateCompletionAndRespondAsync(message.Chat, chat, ct);
-		}
-
-		public override async Task HandlePhotoAsync(TGMessage message, PhotoSize[] photos, CancellationToken ct)
-		{
-			var photo = photos.OrderByDescending(s => s.Width * s.Height).First();
-
-			File fileInfo = await Client.NativeClient.GetFileAsync(photo.FileId, ct);
-			var url = $"https://api.telegram.org/file/bot{Client.ActiveConfiguration.Token}/{fileInfo.FilePath}";
-			IChat chat = GetChat(message.Chat.Id);
-
-			var caption = message.Caption;
-
-			chat.ModifyMessages(s =>
-			{
-				if (caption is not null)
-					return s.Add(new AIMessage(MessageRole.User, new ImageMessageContent(url))).Add(new AIMessage(MessageRole.User, new TextMessageContent(caption)));
-				else return s.Add(new AIMessage(MessageRole.User, new ImageMessageContent(url)));
-			});
+			chat.ModifyMessages(s => s.Add(new AIMessage(MessageRole.User, new TextMessageContent(text))));
 
 			await CreateCompletionAndRespondAsync(message.Chat, chat, ct);
 		}
@@ -89,10 +68,16 @@ namespace TelegramAIBot
 
 		private async Task CreateCompletionAndRespondAsync(ChatId tgChat, IChat chat, CancellationToken ct)
 		{
-			var response = await chat.CreateChatCompletionAsync();
+			var preMessage = await Client.NativeClient.SendTextMessageAsync(tgChat, "Generating, please wait", cancellationToken: ct);
+
+			var task = chat.CreateChatCompletionAsync();
+
+			await Task.WhenAll(Task.Delay(2000, ct), task);
+
+			var response = task.Result;
 			chat.ModifyMessages(s => s.Add(response));
 
-			await Client.NativeClient.SendTextMessageAsync(tgChat, response.Contents[0].PresentAsString(), cancellationToken: ct, parseMode: ParseMode.Markdown);
+			await Client.NativeClient.EditMessageTextAsync(tgChat, preMessage.MessageId, response.Content.PresentAsString(), cancellationToken: ct, parseMode: ParseMode.Markdown);
 		}
 	}
 }
