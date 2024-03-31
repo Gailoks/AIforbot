@@ -47,7 +47,7 @@ namespace TelegramAIBot.AI.OpenAI
 			var response = await _client.SendMessageAsync<JObject>("v1/chat/completions", request, HttpMethod.Post);
 
 			dynamic choice = response.ResponseBody;
-			var content = choice.choices[0].message.content;
+			var content = choice.choices[0].message.content.ToObject<string>();
 
 			var message = new Message(MessageRole.Assistant, new TextMessageContent(content));
 
