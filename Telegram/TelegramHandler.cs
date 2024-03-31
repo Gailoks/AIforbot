@@ -33,17 +33,30 @@ namespace TelegramAIBot.Telegram
 			return Task.CompletedTask;
 		}
 
-		private async Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
+		private Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
 		{
-			switch (update.Type)
+			HandleUpdateInternalAsync(update, cancellationToken);
+			return Task.CompletedTask;
+		}
+
+		private async void HandleUpdateInternalAsync(Update update, CancellationToken cancellationToken)
+		{
+			try
 			{
-				case UpdateType.Message:
-					await _module.ProcessUserMessageAsync(update.Message!, cancellationToken);
-				break;
-				
-				case UpdateType.CallbackQuery:
-					await _module.ProcessUserCallbackAsync(update.CallbackQuery!, cancellationToken);
-				break;
+				switch (update.Type)
+				{
+					case UpdateType.Message:
+						await _module.ProcessUserMessageAsync(update.Message!, cancellationToken);
+						break;
+
+					case UpdateType.CallbackQuery:
+						await _module.ProcessUserCallbackAsync(update.CallbackQuery!, cancellationToken);
+						break;
+				}
+			}
+			catch (Exception)
+			{
+				//TODO: add logging
 			}
 		}
 	}

@@ -45,9 +45,16 @@ namespace TelegramAIBot.AI.Abstractions
 		{
 			await _asyncOpSync.WaitAsync();
 
-			var result = await CreateChatCompletionAsyncInternal();
+			Message result;
 
-			_asyncOpSync.Release();
+			try
+			{
+				result = await CreateChatCompletionAsyncInternal();
+			}
+			finally
+			{
+				_asyncOpSync.Release();
+			}
 
 			return result;
 		}

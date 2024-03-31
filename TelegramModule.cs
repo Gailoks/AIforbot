@@ -88,11 +88,21 @@ namespace TelegramAIBot
 				return;
 			}
 
-			var chat = state.Chat;
+			await state.OperationSync.WaitAsync(ct);
+			if (ct.IsCancellationRequested) return;
 
-			chat.ModifyMessages(s => s.Add(new AIMessage(MessageRole.User, new TextMessageContent(text))));
+			try
+			{
+				var chat = state.Chat;
 
-			await CreateCompletionAndRespondAsync(message.Chat, chat, ct);
+				chat.ModifyMessages(s => s.Add(new AIMessage(MessageRole.User, new TextMessageContent(text))));
+
+				await CreateCompletionAndRespondAsync(message.Chat, chat, ct);
+			}
+			finally
+			{
+				state.OperationSync.Release();
+			}
 		}
 
 		private async Task Start(TGMessage message, CancellationToken ct)
@@ -157,6 +167,8 @@ namespace TelegramAIBot
 
 
 			public string? ActiveParameterToChange { get; set; }
+
+			public SemaphoreSlim OperationSync { get; } = new SemaphoreSlim(1);
 
 			public IChat Chat { get; }
 		}
