@@ -9,11 +9,13 @@ namespace TelegramAIBot.AI.OpenAI
 	{
 		private readonly Configuration _configuration;
 		private readonly HttpClient _httpClient = new();
+		private readonly SemaphoreSlim _requestSync = new(3, 3);
 
 
 		public OpenAIClient(IOptions<Configuration> configuration)
 		{
 			_configuration = configuration.Value;
+			_requestSync = new SemaphoreSlim(configuration.Value.RequestConcurrentLimit);
 		}
 
 
@@ -36,7 +38,14 @@ namespace TelegramAIBot.AI.OpenAI
 			foreach (var header in headers)
 				request.Headers.Add(header.Key, header.Value);
 
-			var response = await _httpClient.SendAsync(request);
+			await _requestSync.WaitAsync();
+			HttpResponseMessage response;
+			try
+			{
+				response = await _httpClient.SendAsync(request);
+			}
+			finally { _requestSync.Release(); }
+
 			var responseContent = await response.Content.ReadAsStringAsync();
 
 			if (response.IsSuccessStatusCode == false)
@@ -58,6 +67,8 @@ namespace TelegramAIBot.AI.OpenAI
 		public class Configuration
 		{
 			public string OpenAIServer { get; init; } = "https://api.openai.com/";
+
+			public int RequestConcurrentLimit { get; init; } = 3;
 
 			public required string Token { get; init; }
 		}
