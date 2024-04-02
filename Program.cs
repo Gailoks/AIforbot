@@ -1,6 +1,6 @@
-﻿using Microsoft.Extensions.Configuration;
-using Telegram.Bot.Types.ReplyMarkups;
-using TelegramAIBot.AI.Abstractions;
+﻿global using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using TelegramAIBot.AI.Gug;
 using TelegramAIBot.AI.OpenAI;
 using TelegramAIBot.Telegram;
@@ -18,39 +18,35 @@ namespace TelegramAIBot
 
 			var config = new ConfigurationBuilder().AddJsonFile("config.json").Build();
 
+			var serviceCollection = new ServiceCollection()
+				.AddSingleton<IUserDataRepository, InMemoryUserDataRepository>()
+				.AddSingleton<TelegramModule>()
 
-			IAIClient aiClient;
-
+				.Configure<TelegramClient.Configuration>(config.GetSection("Telegram")) 
+				.AddSingleton<TelegramClient>()
+			;
 
 			if (args.Contains("--useGugClient"))
 			{
 				Console.WriteLine("Using gug client");
-				GugClient.Configuration configuration = config.GetSection("AI:Gug").Get<GugClient.Configuration>()
-					?? throw new Exception("No configuration found for gug client. Fix it in config.json file [AI:Gug]");
-
-				aiClient = new GugClient(configuration);
+				serviceCollection
+					.Configure<GugClient.Configuration>(config.GetSection("AI:Gug"))
+					.AddSingleton<GugClient>()
+				;
 			}
 			else
 			{
 				Console.WriteLine("Using real client");
-				OpenAIClient.Configuration configuration = config.GetSection("AI:OpenAI").Get<OpenAIClient.Configuration>()
-					?? throw new Exception("No configuration found for openAI client. Fix it in config.json file [AI:OpenAI]");
-
-				aiClient = new OpenAIClient(configuration);
+				serviceCollection
+					.Configure<OpenAIClient.Configuration>(config.GetSection("AI:OpenAI"))
+					.AddSingleton<OpenAIClient>()
+				;
 			}
 
 
-			IUserDataRepository userDataRepository = new InMemoryUserDataRepository();
+			var services = serviceCollection.BuildServiceProvider();
 
-			var module = new TelegramModule(aiClient, userDataRepository);
-
-
-			TelegramClient.Configuration tgConfiguration = config.GetSection("Telegram").Get<TelegramClient.Configuration>()
-					?? throw new Exception("No configuration found for telegram client. Fix it in config.json file [Telegram]");
-
-			var telegramClient = new TelegramClient(tgConfiguration, module);
-
-			telegramClient.Start();
+			services.GetRequiredService<TelegramClient>().Start();
 
 			Thread.Sleep(-1);
 		}

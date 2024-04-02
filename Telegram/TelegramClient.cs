@@ -13,11 +13,11 @@ namespace TelegramAIBot.Telegram
 		private readonly TelegramBotClient _nativeClient;
 
 
-		public TelegramClient(Configuration configuration, ITelegramModule module)
+		public TelegramClient(IOptions<Configuration> configuration, ITelegramModule module)
 		{
-			_configuration = configuration;
+			_configuration = configuration.Value;
 			_module = module;
-			_nativeClient = new TelegramBotClient(configuration.Token);
+			_nativeClient = new TelegramBotClient(configuration.Value.Token);
 			_handler = new TelegramHandler(_nativeClient, module);
 		}
 

@@ -11,9 +11,9 @@ namespace TelegramAIBot.AI.OpenAI
 		private readonly HttpClient _httpClient = new();
 
 
-		public OpenAIClient(Configuration configuration)
+		public OpenAIClient(IOptions<Configuration> configuration)
 		{
-			_configuration = configuration;
+			_configuration = configuration.Value;
 		}
 
 

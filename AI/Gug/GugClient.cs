@@ -7,9 +7,9 @@ namespace TelegramAIBot.AI.Gug
 		private readonly Configuration _configuration;
 
 
-		public GugClient(Configuration configuration)
+		public GugClient(IOptions<Configuration> configuration)
 		{
-			_configuration = configuration;
+			_configuration = configuration.Value;
 		}
 
 
