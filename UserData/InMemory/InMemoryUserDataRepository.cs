@@ -1,9 +1,23 @@
-﻿namespace TelegramAIBot.UserData.InMemory
+﻿using Microsoft.Extensions.Logging;
+
+namespace TelegramAIBot.UserData.InMemory
 {
 	internal sealed class InMemoryUserDataRepository : IUserDataRepository
 	{
+		public static readonly EventId StoreValueProvidedLOG = new EventId(11, nameof(StoreValueProvidedLOG)).Form();
+		public static readonly EventId NewStoreCreatedLOG = new EventId(12, nameof(NewStoreCreatedLOG)).Form();
+		public static readonly EventId ObjectHolderClosedLOG = new EventId(13, nameof(ObjectHolderClosedLOG)).Form();
+
+
 		private readonly Dictionary<string, Store> _stores = [];
 		private readonly SemaphoreSlim _lock = new(1);
+		private readonly ILogger<InMemoryUserDataRepository>? _logger;
+
+
+		public InMemoryUserDataRepository(ILogger<InMemoryUserDataRepository>? logger = null)
+		{
+			_logger = logger;
+		}
 
 
 		public ObjectHolder<TObject> Get<TObject>(string storageId)
@@ -11,10 +25,10 @@
 		{
 			TObject result;
 
+			AutoResetEvent syncRoot;
+
 			try
 			{
-				AutoResetEvent syncRoot;
-
 				_lock.Wait();
 
 				if (_stores.TryGetValue(storageId, out var value))
@@ -28,16 +42,26 @@
 					syncRoot = store.SyncRoot;
 					_stores.Add(storageId, store);
 					result = store.Read<TObject>();
+
+					_logger?.Log(LogLevel.Debug, NewStoreCreatedLOG, "New storage with id {StorageId}", storageId);
 				}
 
-				syncRoot.WaitOne();
 			}
 			finally
 			{
 				_lock.Release();
 			}
 
-			return new ObjectHolder<TObject>(result, storageId, FinalizeObjectHolder);
+
+			syncRoot.WaitOne();
+
+			var holderId = Guid.NewGuid();
+
+			_logger?.Log(LogLevel.Trace, StoreValueProvidedLOG,
+				"Value of storage {StorageId} provided with id {HolderId}. Current Value: {Value}",
+				storageId, holderId, result);
+
+			return new ObjectHolder<TObject>(result, storageId, FinalizeObjectHolder, holderId);
 		}
 
 		private void FinalizeObjectHolder<TObject>(ObjectHolder<TObject> holder, object parameter) where TObject : notnull
@@ -53,6 +77,10 @@
 				store.Object = holder.Object;
 
 				store.SyncRoot.Set();
+
+				_logger?.Log(LogLevel.Trace, ObjectHolderClosedLOG,
+					"Object holder with id {HolderId} of storage {StorageId} that now is free. New Value: {Value}",
+					holder.Id, storageId, holder.Object);
 			}
 			finally
 			{

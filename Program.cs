@@ -1,4 +1,5 @@
 ﻿global using Microsoft.Extensions.Options;
+global using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TelegramAIBot.AI.Gug;
@@ -12,6 +13,9 @@ namespace TelegramAIBot
 {
 	class Program
 	{
+		public static readonly EventId GugClientUsedLOG = new EventId(12, nameof(GugClientUsedLOG)).Form();
+
+
 		public static void Main(string[] args)
 		{
 			ReadableTimeSpan.EnableConfigurationBinding();
@@ -22,11 +26,15 @@ namespace TelegramAIBot
 				.AddSingleton<IUserDataRepository, InMemoryUserDataRepository>()
 				.AddSingleton<TelegramModule>()
 
+				.AddLogging(sb => sb.AddConsole())
+
 				.Configure<TelegramClient.Configuration>(config.GetSection("Telegram")) 
 				.AddSingleton<TelegramClient>()
 			;
 
-			if (args.Contains("--useGugClient"))
+
+			var isGugClientImplementationUsed = args.Contains("--useGugClient");
+			if (isGugClientImplementationUsed)
 			{
 				Console.WriteLine("Using gug client");
 				serviceCollection
@@ -43,8 +51,11 @@ namespace TelegramAIBot
 				;
 			}
 
-
 			var services = serviceCollection.BuildServiceProvider();
+			var logger = services.GetRequiredService<ILogger<Program>>();
+
+			if (isGugClientImplementationUsed)
+				logger.Log(LogLevel.Information, "Using gug version of ai client");
 
 			services.GetRequiredService<TelegramClient>().Start();
 

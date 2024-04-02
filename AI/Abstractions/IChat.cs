@@ -8,6 +8,8 @@ namespace TelegramAIBot.AI.Abstractions
 
 		public IImmutableList<Message> Messages { get; set; } 
 
+		public Guid Id { get; }
+
 
 		public void ModifyOptions(Func<ChatCompletionOptions, ChatCompletionOptions> modification);
 

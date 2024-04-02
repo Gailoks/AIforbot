@@ -12,17 +12,49 @@ namespace TelegramAIBot.AI.Abstractions
 		private IImmutableList<Message> _messages;
 
 
-		protected AbstractChat()
+		protected AbstractChat(Guid id)
 		{
 			_optionsValidator = new ChatCompletionOptionsValidator();
 			_options = new ChatCompletionOptions();
 			_messages = ImmutableList<Message>.Empty;
+			Id = id;
 		}
 
 
-		public IImmutableList<Message> Messages { get => _messages; set { lock (_syncRoot) { _messages = value; } } }
+		public IImmutableList<Message> Messages
+		{
+			get => _messages;
+			set
+			{
+				lock (_syncRoot)
+				{
+					var oldValue = _messages;
+					_messages = value;
+					MessagesChanged?.Invoke(oldValue);
+				}
+			}
+		}
 
-		public ChatCompletionOptions Options { get => _options; set { lock (_syncRoot) { _optionsValidator.ValidateAndThrow(value); _options = value; } } }
+		public ChatCompletionOptions Options
+		{
+			get => _options;
+			set
+			{
+				lock (_syncRoot)
+				{
+					_optionsValidator.ValidateAndThrow(value);
+					var oldValue = _options;
+					_options = value;
+					OptionsChanged?.Invoke(oldValue);
+				}
+			}
+		}
+
+		public Guid Id { get; }
+
+
+		public event Action<IImmutableList<Message>>? MessagesChanged;
+		public event Action<ChatCompletionOptions>? OptionsChanged;
 
 
 		public void ModifyOptions(Func<ChatCompletionOptions, ChatCompletionOptions> modification)

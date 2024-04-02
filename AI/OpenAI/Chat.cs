@@ -9,7 +9,7 @@ namespace TelegramAIBot.AI.OpenAI
 		private readonly OpenAIClient _client;
 
 
-		public Chat(OpenAIClient client)
+		public Chat(OpenAIClient client) : base(Guid.NewGuid()) //TODO: fix
 		{
 			_client = client;
 		}
