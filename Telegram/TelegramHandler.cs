@@ -1,13 +1,16 @@
+using System.Collections.Concurrent;
 using Telegram.Bot;
 using Telegram.Bot.Polling;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
-namespace TelegramAIBot.Telegram 
+
+namespace TelegramAIBot.Telegram
 {
 	class TelegramHandler
 	{
 		private readonly TelegramBotClient _client;
 		private readonly ITelegramModule _module;
+		private readonly ConcurrentDictionary<long, SemaphoreSlim> _sync = [];
 
 
 		public TelegramHandler(TelegramBotClient client, ITelegramModule module)
@@ -41,15 +44,23 @@ namespace TelegramAIBot.Telegram
 
 		private async void HandleUpdateInternalAsync(Update update, CancellationToken cancellationToken)
 		{
+			SemaphoreSlim? semaphore = null;
+
 			try
 			{
 				switch (update.Type)
 				{
 					case UpdateType.Message:
+						await waitSemaphoreAsync(update.Message!.Chat.Id, cancellationToken, out semaphore);
+						if (cancellationToken.IsCancellationRequested) return;
+
 						await _module.ProcessUserMessageAsync(update.Message!, cancellationToken);
 						break;
 
 					case UpdateType.CallbackQuery:
+						await waitSemaphoreAsync(update.CallbackQuery!.From.Id, cancellationToken, out semaphore);
+						if (cancellationToken.IsCancellationRequested) return;
+
 						await _module.ProcessUserCallbackAsync(update.CallbackQuery!, cancellationToken);
 						break;
 				}
@@ -57,6 +68,17 @@ namespace TelegramAIBot.Telegram
 			catch (Exception)
 			{
 				//TODO: add logging
+			}
+			finally
+			{
+				semaphore?.Release();
+			}
+
+
+			Task waitSemaphoreAsync(long chatId, CancellationToken cancellationToken, out SemaphoreSlim semaphore)
+			{
+				semaphore = _sync.GetOrAdd(chatId, (_) => new SemaphoreSlim(1));
+				return semaphore.WaitAsync(cancellationToken);
 			}
 		}
 	}

@@ -47,61 +47,58 @@ namespace TelegramAIBot
 
 			if (state.ActiveParameterToChange is not null)
 			{
-				using var holder = _userDataRepository.Get<UserSettings>(UserSettings.StorageId);
-				try
-				{
-					var so = holder.Object;
-					var culture = new CultureInfo("en");
-
-					switch (state.ActiveParameterToChange)
-					{
-						case "system_prompt":
-							holder.Object = so with { Options = so.Options with { SystemPrompt = text } };
-							break;
-
-						case "temperature":
-							holder.Object = so with { Options = so.Options with { Temperature = double.Parse(text, culture) } };
-							break;
-
-						case "top_p":
-							holder.Object = so with { Options = so.Options with { TopP = double.Parse(text, culture) } };
-							break;
-
-						case "frequency_penalty":
-							holder.Object = so with { Options = so.Options with { FrequencyPenalty = double.Parse(text, culture) } };
-							break;
-
-						default:
-							break;
-					}
-
-					_chatCompletionOptionsValidator.ValidateAndThrow(holder.Object.Options);
-
-					await Client.NativeClient.SendTextMessageAsync(message.Chat, "Change ok", cancellationToken: ct);
-				}
-				catch (Exception)
-				{
-					await Client.NativeClient.SendTextMessageAsync(message.Chat, "Invalid parameter value", cancellationToken: ct);
-				}
-
+				await ProcessParametersInput(message.Chat, text, state, ct);
 				state.ActiveParameterToChange = null;
 				return;
 			}
 
-			await state.OperationSync.WaitAsync(ct);
-			if (ct.IsCancellationRequested) return;
+			var chat = state.Chat;
+
+			chat.ModifyMessages(s => s.Add(new AIMessage(MessageRole.User, new TextMessageContent(text))));
+
+			await CreateCompletionAndRespondAsync(message.Chat, chat, ct);
+		}
+
+		private async Task ProcessParametersInput(ChatId chat, string text, UserState state, CancellationToken ct)
+		{
+			var holder = _userDataRepository.Get<UserSettings>(UserSettings.StorageId);
+			var oldValue = holder.Object;
 
 			try
 			{
-				var chat = state.Chat;
+				var so = holder.Object;
+				var culture = new CultureInfo("en");
 
-				chat.ModifyMessages(s => s.Add(new AIMessage(MessageRole.User, new TextMessageContent(text))));
+				switch (state.ActiveParameterToChange)
+				{
+					case "system_prompt":
+						holder.Object = so with { Options = so.Options with { SystemPrompt = text } };
+						break;
 
-				await CreateCompletionAndRespondAsync(message.Chat, chat, ct);
+					case "temperature":
+						holder.Object = so with { Options = so.Options with { Temperature = double.Parse(text, culture) } };
+						break;
+
+					case "top_p":
+						holder.Object = so with { Options = so.Options with { TopP = double.Parse(text, culture) } };
+						break;
+
+					case "frequency_penalty":
+						holder.Object = so with { Options = so.Options with { FrequencyPenalty = double.Parse(text, culture) } };
+						break;
+
+					default:
+						break;
+				}
+
+				_chatCompletionOptionsValidator.ValidateAndThrow(holder.Object.Options);
+
+				await Client.NativeClient.SendTextMessageAsync(chat, "Change ok", cancellationToken: ct);
 			}
-			finally
+			catch (Exception)
 			{
-				state.OperationSync.Release();
+				await Client.NativeClient.SendTextMessageAsync(chat, "Invalid parameter value", cancellationToken: ct);
+				holder.Object = oldValue;
 			}
 		}
 
@@ -167,8 +164,6 @@ namespace TelegramAIBot
 
 
 			public string? ActiveParameterToChange { get; set; }
-
-			public SemaphoreSlim OperationSync { get; } = new SemaphoreSlim(1);
 
 			public IChat Chat { get; }
 		}

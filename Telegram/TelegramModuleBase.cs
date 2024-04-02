@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -15,7 +16,7 @@ namespace TelegramAIBot.Telegram
 
 		public async virtual Task ProcessUserMessageAsync(Message message, CancellationToken ct)
 		{
-			switch(message.Type)
+			switch (message.Type)
 			{
 				case MessageType.Text:
 					var text = message.Text!;
@@ -35,15 +36,15 @@ namespace TelegramAIBot.Telegram
 						await HandleTextMessageAsync(message, message.Text!, ct);
 					}
 
-				break;
+					break;
 
 				case MessageType.Document:
 					await HandleDocumentAsync(message, message.Document!, ct);
-				break;
+					break;
 
 				case MessageType.Photo:
 					await HandlePhotoAsync(message, message.Photo!, ct);
-				break;
+					break;
 			}
 		}
 
