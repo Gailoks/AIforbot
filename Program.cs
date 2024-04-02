@@ -8,6 +8,7 @@ using TelegramAIBot.Telegram;
 using TelegramAIBot.UserData;
 using TelegramAIBot.UserData.InMemory;
 using TomLonghurst.ReadableTimeSpan;
+using TelegramAIBot.AI.Abstractions;
 
 namespace TelegramAIBot
 {
@@ -24,9 +25,9 @@ namespace TelegramAIBot
 
 			var serviceCollection = new ServiceCollection()
 				.AddSingleton<IUserDataRepository, InMemoryUserDataRepository>()
-				.AddSingleton<TelegramModule>()
+				.AddSingleton<ITelegramModule, TelegramModule>()
 
-				.AddLogging(sb => sb.AddConsole())
+				.AddLogging(sb => sb.AddConsole().SetMinimumLevel(LogLevel.Trace))
 
 				.Configure<TelegramClient.Configuration>(config.GetSection("Telegram")) 
 				.AddSingleton<TelegramClient>()
@@ -36,18 +37,16 @@ namespace TelegramAIBot
 			var isGugClientImplementationUsed = args.Contains("--useGugClient");
 			if (isGugClientImplementationUsed)
 			{
-				Console.WriteLine("Using gug client");
 				serviceCollection
 					.Configure<GugClient.Configuration>(config.GetSection("AI:Gug"))
-					.AddSingleton<GugClient>()
+					.AddSingleton<IAIClient, GugClient>()
 				;
 			}
 			else
 			{
-				Console.WriteLine("Using real client");
 				serviceCollection
 					.Configure<OpenAIClient.Configuration>(config.GetSection("AI:OpenAI"))
-					.AddSingleton<OpenAIClient>()
+					.AddSingleton<IAIClient, OpenAIClient>()
 				;
 			}
 
@@ -55,7 +54,7 @@ namespace TelegramAIBot
 			var logger = services.GetRequiredService<ILogger<Program>>();
 
 			if (isGugClientImplementationUsed)
-				logger.Log(LogLevel.Information, "Using gug version of ai client");
+				logger.Log(LogLevel.Information, GugClientUsedLOG, "Using gug version of ai client");
 
 			services.GetRequiredService<TelegramClient>().Start();
 
