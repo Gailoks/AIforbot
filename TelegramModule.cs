@@ -90,7 +90,7 @@ namespace TelegramAIBot
 
 				_chatCompletionOptionsValidator.ValidateAndThrow(holder.Object.Options);
 
-				await Client.NativeClient.SendTextMessageAsync(chat, $"{state.ActiveParameterToChange} has been succesfully changed", cancellationToken: ct);
+				await Client.NativeClient.SendTextMessageAsync(chat, $"{state.ActiveParameterToChange} has been successfully changed", cancellationToken: ct);
 			}
 			catch (Exception)
 			{
@@ -120,7 +120,7 @@ namespace TelegramAIBot
 			Settings:
 			Temperature - {Options.Temperature?.ToString() ?? "Default"}
 			Top-p - {Options.TopP?.ToString() ?? "Default"}
-			Frequency penalty -{Options.FrequencyPenalty?.ToString() ?? "Default"}
+			Frequency penalty - {Options.FrequencyPenalty?.ToString() ?? "Default"}
 			Model name - {Options.ModelName}
 			System prompt - {Options.SystemPrompt ?? "None"}
 			""", replyMarkup: _settingsKeyboardMarkup, cancellationToken: ct);
