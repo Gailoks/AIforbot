@@ -20,7 +20,6 @@ namespace TelegramAIBot
 		private readonly IUserDataRepository _userDataRepository;
 		private readonly IValidator<ChatCompletionOptions> _chatCompletionOptionsValidator = new ChatCompletionOptionsValidator();
 
-
 		private readonly InlineKeyboardMarkup _settingsKeyboardMarkup = new(
 		[
 			[InlineKeyboardButton.WithCallbackData("Change system prompt", "Ssystem_prompt")],
@@ -28,7 +27,6 @@ namespace TelegramAIBot
 			[InlineKeyboardButton.WithCallbackData("Change top p", "Stop_p")],
 			[InlineKeyboardButton.WithCallbackData("Change frequency penalty", "Sfrequency_penalty")]
 		]);
-
 
 		public TelegramModule(IAIClient aiClient, IUserDataRepository userDataRepository)
 		{
@@ -39,7 +37,6 @@ namespace TelegramAIBot
 			RegisterCommand("restart", Restart);
 			RegisterCommand("settings",Settings);
 		}
-
 
 		protected override async Task HandleTextMessageAsync(TGMessage message, string text, CancellationToken ct)
 		{
@@ -61,7 +58,7 @@ namespace TelegramAIBot
 
 		private async Task ProcessParametersInput(ChatId chat, string text, UserState state, CancellationToken ct)
 		{
-			var holder = _userDataRepository.Get<UserSettings>(UserSettings.StorageId);
+			using var holder = _userDataRepository.Get<UserSettings>(UserSettings.StorageId);
 			var oldValue = holder.Object;
 
 			try
@@ -93,11 +90,11 @@ namespace TelegramAIBot
 
 				_chatCompletionOptionsValidator.ValidateAndThrow(holder.Object.Options);
 
-				await Client.NativeClient.SendTextMessageAsync(chat, "Change ok", cancellationToken: ct);
+				await Client.NativeClient.SendTextMessageAsync(chat, $"{state.ActiveParameterToChange} has been succesfully changed", cancellationToken: ct);
 			}
 			catch (Exception)
 			{
-				await Client.NativeClient.SendTextMessageAsync(chat, "Invalid parameter value", cancellationToken: ct);
+				await Client.NativeClient.SendTextMessageAsync(chat, $"Invalid parameter value for {state.ActiveParameterToChange}", cancellationToken: ct);
 				holder.Object = oldValue;
 			}
 		}
@@ -116,7 +113,17 @@ namespace TelegramAIBot
 
 		private async Task Settings(TGMessage message, CancellationToken ct)
 		{
-			await Client.NativeClient.SendTextMessageAsync(message.Chat, "Settings list:", replyMarkup: _settingsKeyboardMarkup, cancellationToken: ct);
+			using var holder = _userDataRepository.Get<UserSettings>(UserSettings.StorageId);
+			var Options = holder.Object.Options;
+			await Client.NativeClient.SendTextMessageAsync(message.Chat, 
+			$"""
+			Settings:
+			Temperature - {Options.Temperature?.ToString() ?? "Default"}
+			Top-p - {Options.TopP?.ToString() ?? "Default"}
+			Frequency penalty -{Options.FrequencyPenalty?.ToString() ?? "Default"}
+			Model name - {Options.ModelName}
+			System prompt - {Options.SystemPrompt ?? "None"}
+			""", replyMarkup: _settingsKeyboardMarkup, cancellationToken: ct);
 		}
 
 		public async override Task ProcessUserCallbackAsync(CallbackQuery callback, CancellationToken ct)
@@ -126,7 +133,7 @@ namespace TelegramAIBot
 			{
 				var state = GetState(callback.From.Id);
 				state.ActiveParameterToChange = data[1..];
-				await Client.NativeClient.SendTextMessageAsync(callback.From.Id, "Please enter new value for paramter", cancellationToken: ct);
+				await Client.NativeClient.SendTextMessageAsync(callback.From.Id, $"Please enter new value for parameter: {data[1..]}", cancellationToken: ct);
 			}
 		}
 

@@ -25,7 +25,7 @@ namespace TelegramAIBot.AI.OpenAI
 			headers ??= [];
 			headers.Add("Authorization", "Bearer " + _configuration.Token);
 
-			var serializedBody = JsonConvert.SerializeObject(body);
+			var serializedBody = JsonConvert.SerializeObject(body, new JsonSerializerSettings{NullValueHandling = NullValueHandling.Ignore});
 			var content = new StringContent(serializedBody, Encoding.UTF8, "application/json");
 
 			var request = new HttpRequestMessage()
