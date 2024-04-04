@@ -58,12 +58,10 @@ namespace TelegramAIBot
 
 		private async Task ProcessParametersInput(ChatId chat, string text, UserState state, CancellationToken ct)
 		{
-			using var holder = _userDataRepository.Get<UserSettings>(UserSettings.StorageId);
-			var oldValue = holder.Object;
+			using var holder = GetUserSettings(chat, out var so);
 
 			try
 			{
-				var so = holder.Object;
 				var culture = new CultureInfo("en");
 
 				switch (state.ActiveParameterToChange)
@@ -95,13 +93,15 @@ namespace TelegramAIBot
 			catch (Exception)
 			{
 				await Client.NativeClient.SendTextMessageAsync(chat, $"Invalid parameter value for {state.ActiveParameterToChange}", cancellationToken: ct);
-				holder.Object = oldValue;
+				holder.Object = so;
 			}
 		}
 
 		private async Task Start(TGMessage message, CancellationToken ct)
 		{
 			_users.TryRemove(message.Chat.Id, out _);
+			using var settings = GetUserSettings(message.Chat, out _);
+			settings.Object = new();
 			await Client.NativeClient.SendTextMessageAsync(message.Chat, "Bot started successfully", cancellationToken: ct);
 		}
 
@@ -113,17 +113,19 @@ namespace TelegramAIBot
 
 		private async Task Settings(TGMessage message, CancellationToken ct)
 		{
-			using var holder = _userDataRepository.Get<UserSettings>(UserSettings.StorageId);
-			var Options = holder.Object.Options;
-			await Client.NativeClient.SendTextMessageAsync(message.Chat, 
-			$"""
-			Settings:
-			Temperature - {Options.Temperature?.ToString() ?? "Default"}
-			Top-p - {Options.TopP?.ToString() ?? "Default"}
-			Frequency penalty - {Options.FrequencyPenalty?.ToString() ?? "Default"}
-			Model name - {Options.ModelName}
-			System prompt - {Options.SystemPrompt ?? "None"}
-			""", replyMarkup: _settingsKeyboardMarkup, cancellationToken: ct);
+			using (GetUserSettings(message.Chat, out var settings))
+			{
+				var options = settings.Options;
+				await Client.NativeClient.SendTextMessageAsync(message.Chat, 
+				$"""
+				Settings:
+				Temperature - {options.Temperature?.ToString() ?? "Default"}
+				Top-p - {options.TopP?.ToString() ?? "Default"}
+				Frequency penalty - {options.FrequencyPenalty?.ToString() ?? "Default"}
+				Model name - {options.ModelName}
+				System prompt - {options.SystemPrompt ?? "None"}
+				""", replyMarkup: _settingsKeyboardMarkup, cancellationToken: ct);
+			}
 		}
 
 		public async override Task ProcessUserCallbackAsync(CallbackQuery callback, CancellationToken ct)
@@ -146,9 +148,9 @@ namespace TelegramAIBot
 		{
 			var preMessage = await Client.NativeClient.SendTextMessageAsync(tgChat, "Generating, please wait", cancellationToken: ct);
 
-			using (var holder = _userDataRepository.Get<UserSettings>(UserSettings.StorageId))
+			using (GetUserSettings(tgChat, out var value))
 			{
-				chat.Options = holder.Object.Options;
+				chat.Options = value.Options;
 			}
 
 			var task = chat.CreateChatCompletionAsync();
@@ -159,6 +161,16 @@ namespace TelegramAIBot
 			chat.ModifyMessages(s => s.Add(response));
 
 			await Client.NativeClient.EditMessageTextAsync(tgChat, preMessage.MessageId, response.Content.PresentAsString(), cancellationToken: ct, parseMode: ParseMode.Markdown);
+		}
+
+		private ObjectHolder<UserSettings> GetUserSettings(ChatId id, out UserSettings settings)
+			=> GetUserSettings(id.Identifier ?? 0, out settings);
+
+		private ObjectHolder<UserSettings> GetUserSettings(long id, out UserSettings settings)
+		{
+			var holder = _userDataRepository.Get<UserSettings>($"user_{id}");
+			settings = holder.Object;
+			return holder;
 		}
 
 
