@@ -2,6 +2,7 @@
 using System.Text;
 using TelegramAIBot.AI.Abstractions;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace TelegramAIBot.AI.OpenAI
 {
@@ -61,6 +62,22 @@ namespace TelegramAIBot.AI.OpenAI
 		public IChat CreateChat()
 		{
 			return new Chat(this);
+		}
+
+		public async Task<TextEmbedding> CreateEmbedding(string model, string text)
+		{
+			var request = new
+			{
+				model = model,
+				input = text
+			};
+
+			var response = await SendMessageAsync<JObject>("v1/embeddings", request, HttpMethod.Post);
+
+			dynamic body = response.ResponseBody;
+			var embedding = (float[])body.data[0].embedding.ToObject<float[]>();
+
+			return new TextEmbedding(embedding);
 		}
 
 
