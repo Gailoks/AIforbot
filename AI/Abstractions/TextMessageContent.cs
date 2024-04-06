@@ -1,6 +1,6 @@
 ﻿namespace TelegramAIBot.AI.Abstractions
 {
-	internal sealed class TextMessageContent : MessageContent
+	internal class TextMessageContent : MessageContent
 	{
 		private readonly string _text;
 

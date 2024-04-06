@@ -20,7 +20,7 @@ namespace TelegramAIBot.RAG
 
 		public Task<TextEmbedding> CreateEmbeddingsAsync(string text) => _embeddingGenerator(text);
 
-		public async Task<RAGContext> CreateContext(string text)
+		public async Task<RAGContext> CreateContextAsync(string text)
 		{
 			var chuckSize = _options.ChuckSize;
 			var textSpan = text.AsMemory();

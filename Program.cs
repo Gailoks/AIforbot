@@ -9,6 +9,7 @@ using TelegramAIBot.UserData;
 using TelegramAIBot.UserData.InMemory;
 using TomLonghurst.ReadableTimeSpan;
 using TelegramAIBot.AI.Abstractions;
+using TelegramAIBot.RAG;
 
 namespace TelegramAIBot
 {
@@ -29,8 +30,14 @@ namespace TelegramAIBot
 
 				.AddLogging(sb => sb.AddConsole().SetMinimumLevel(LogLevel.Trace))
 
-				.Configure<TelegramClient.Configuration>(config.GetSection("Telegram")) 
+				.Configure<TelegramClient.Configuration>(config.GetSection("Telegram"))
 				.AddSingleton<TelegramClient>()
+
+				.AddTransient<TextExtractor>()
+
+				.Configure<RAGProcessor.Configuration>(config.GetSection("RAG"))
+				.AddTransient<RAGProcessor.TextEmbeddingGenerator>(sp => async (text) => await sp.GetRequiredService<IAIClient>().CreateEmbeddingAsync("gpt-3.5-turbo", text))
+				.AddTransient<RAGProcessor>()
 			;
 
 

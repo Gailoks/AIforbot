@@ -4,6 +4,6 @@
 	{
 		public IChat CreateChat();
 
-		public Task<TextEmbedding> CreateEmbedding(string model, string text);
+		public Task<TextEmbedding> CreateEmbeddingAsync(string model, string text);
 	}
 }

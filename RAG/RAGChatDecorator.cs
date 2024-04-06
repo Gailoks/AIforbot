@@ -5,6 +5,7 @@ namespace TelegramAIBot.RAG
 {
 	internal sealed class RAGChatDecorator : AbstractChat
 	{
+		private readonly Dictionary<Message, RAGMessageContent> _substitutionDictionary = [];
 		private readonly RAGContext _context;
 		private readonly IChat _chat;
 
@@ -13,24 +14,51 @@ namespace TelegramAIBot.RAG
 		{
 			_context = context;
 			_chat = chat;
+
+			Options = chat.Options;
+			Messages = chat.Messages;
+
+			OptionsChanged += (_) => { _chat.Options = Options; };
+			MessagesChanged += (_) => ApplyMessagesToBase();
 		}
 
 
 		protected override async Task<Message> CreateChatCompletionAsyncInternal()
 		{
-			var lastMessage = Messages.Last();
+			var messages = Messages;
+
+			await CreateSubstitutionWithRAGAsync(messages[messages.Count - 1]);
+
+			ApplyMessagesToBase();
+
+			//Clear _substitutionDictionary
+			foreach (var key in _substitutionDictionary.Keys)
+				if (messages.Contains(key) == false)
+					_substitutionDictionary.Remove(key);
+
+			return await _chat.CreateChatCompletionAsync();
+		}
+
+		private void ApplyMessagesToBase()
+		{
+			_chat.Messages = Messages.Select(TrySubstitute).ToImmutableArray();
+		}
+
+		private async Task CreateSubstitutionWithRAGAsync(Message message)
+		{
 			var visitor = new MessageVisitor();
-			var prompt = lastMessage.Content.Visit(visitor);
+			var prompt = message.Content.Visit(visitor);
 			var chunk = await _context.AssociateChunkAsync(prompt);
 			var rag = new RAGMessageContent(chunk, prompt);
-			var message = new Message(lastMessage.Role, rag);
 
-			ModifyMessages(s => s.Replace(lastMessage, message, null));
+			_substitutionDictionary.Add(message, rag);
+		}
 
-			_chat.Options = Options;
-			_chat.Messages = Messages.Select(s => s.Content is RAGMessageContent rag ? s with { Content = rag.AsTextContent() } : s).ToImmutableArray();
-
-			return await _chat.CreateChatCompletionAsync();		
+		private Message TrySubstitute(Message message)
+		{
+			if (_substitutionDictionary.TryGetValue(message, out var content))
+				return message with { Content = content };
+			else return message;
 		}
 
 
@@ -41,25 +69,25 @@ namespace TelegramAIBot.RAG
 				return textContent.Text;
 			}
 		}
-		private class RAGMessageContent : MessageContent
+
+		private class RAGMessageContent : TextMessageContent
 		{
 			public RAGMessageContent(TextChunk chunk, string prompt)
+				: base(FormText(chunk, prompt))
 			{
 				Chunk = chunk;
 				Prompt = prompt;
 			}
 
+
 			public TextChunk Chunk { get; }
 
 			public string Prompt { get; }
 
-			public override bool IsPresentableAsString => false;
 
-			public TextMessageContent AsTextContent() => new(Chunk.Text + Prompt);
-
-			public override TResult Visit<TResult>(IMessageContentVisitor<TResult> visitor)
+			private static string FormText(TextChunk chunk, string prompt)
 			{
-				throw new NotSupportedException();
+				return chunk.Text + "\n\n" + prompt;
 			}
 		}
 	}

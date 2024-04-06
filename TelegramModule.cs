@@ -3,13 +3,15 @@ using Telegram.Bot;
 using TelegramAIBot.AI.Abstractions;
 using TelegramAIBot.Telegram;
 using Telegram.Bot.Types.Enums;
-using TGMessage = Telegram.Bot.Types.Message;
-using AIMessage = TelegramAIBot.AI.Abstractions.Message;
 using Telegram.Bot.Types;
 using TelegramAIBot.UserData;
 using Telegram.Bot.Types.ReplyMarkups;
 using FluentValidation;
 using System.Globalization;
+using TelegramAIBot.RAG;
+using File = Telegram.Bot.Types.File;
+using TGMessage = Telegram.Bot.Types.Message;
+using AIMessage = TelegramAIBot.AI.Abstractions.Message;
 
 namespace TelegramAIBot
 {
@@ -18,7 +20,10 @@ namespace TelegramAIBot
 		private readonly ConcurrentDictionary<long, UserState> _users = [];
 		private readonly IAIClient _aiClient;
 		private readonly IUserDataRepository _userDataRepository;
+		private readonly TextExtractor _textExtractor;
+		private readonly RAGProcessor _rag;
 		private readonly IValidator<ChatCompletionOptions> _chatCompletionOptionsValidator = new ChatCompletionOptionsValidator();
+
 
 		private readonly InlineKeyboardMarkup _settingsKeyboardMarkup = new(
 		[
@@ -28,15 +33,27 @@ namespace TelegramAIBot
 			[InlineKeyboardButton.WithCallbackData("Change frequency penalty", "Sfrequency_penalty")]
 		]);
 
-		public TelegramModule(IAIClient aiClient, IUserDataRepository userDataRepository)
+		private readonly InlineKeyboardMarkup _ragCtrlKeyboardMarkup = new(
+		[
+			[InlineKeyboardButton.WithCallbackData("Disable RAG", "RAG_disable")],
+			[InlineKeyboardButton.WithCallbackData("Suspend RAG", "RAG_suspend")],
+			[InlineKeyboardButton.WithCallbackData("Resume RAG", "RAG_resume")],
+		]);
+
+
+		public TelegramModule(IAIClient aiClient, IUserDataRepository userDataRepository, TextExtractor textExtractor, RAGProcessor rag)
 		{
 			_aiClient = aiClient;
 			_userDataRepository = userDataRepository;
+			_textExtractor = textExtractor;
+			_rag = rag;
 
 			RegisterCommand("start", Start);
 			RegisterCommand("restart", Restart);
-			RegisterCommand("settings",Settings);
+			RegisterCommand("settings", Settings);
+			RegisterCommand("rag", ControlRAG);
 		}
+
 
 		protected override async Task HandleTextMessageAsync(TGMessage message, string text, CancellationToken ct)
 		{
@@ -111,6 +128,16 @@ namespace TelegramAIBot
 			await Client.NativeClient.SendTextMessageAsync(message.Chat, "Bot restarted successfully", cancellationToken: ct);
 		}
 
+		private async Task ControlRAG(TGMessage message, CancellationToken ct)
+		{
+			var state = GetState(message.Chat.Id);
+
+			if (state.CurrentRAGState == UserState.RAGState.Disabled)
+				await Client.NativeClient.SendTextMessageAsync(message.Chat, "RAG is disabled, to enable it send file to bot", cancellationToken: ct);
+			else
+				await Client.NativeClient.SendTextMessageAsync(message.Chat, $"RAG is {state.CurrentRAGState}", replyMarkup: _ragCtrlKeyboardMarkup, cancellationToken: ct);
+		}
+
 		private async Task Settings(TGMessage message, CancellationToken ct)
 		{
 			using (GetUserSettings(message.Chat, out var settings))
@@ -131,12 +158,53 @@ namespace TelegramAIBot
 		public async override Task ProcessUserCallbackAsync(CallbackQuery callback, CancellationToken ct)
 		{
 			var data = callback.Data;
-			if (data is not null && data.StartsWith('S'))
+			var state = GetState(callback.From.Id);
+
+			if (data is not null)
 			{
-				var state = GetState(callback.From.Id);
-				state.ActiveParameterToChange = data[1..];
-				await Client.NativeClient.SendTextMessageAsync(callback.From.Id, $"Please enter new value for parameter: {data[1..]}", cancellationToken: ct);
+				if (data.StartsWith('S'))
+				{
+					state.ActiveParameterToChange = data[1..];
+					await Client.NativeClient.SendTextMessageAsync(callback.From.Id, $"Please enter new value for parameter: {data[1..]}", cancellationToken: ct);
+				}
+				else
+				{
+					switch (data)
+					{
+						case "RAG_disable":
+							state.ChangeRAGContext(null);
+							await Client.NativeClient.SendTextMessageAsync(callback.From.Id, $"RAG disabled", cancellationToken: ct);
+							break;
+
+						case "RAG_suspend":
+							state.SuspendRAG();
+							await Client.NativeClient.SendTextMessageAsync(callback.From.Id, $"RAG suspended", cancellationToken: ct);
+							break;
+
+						case "RAG_resume":
+							state.ResumeRAG();
+							await Client.NativeClient.SendTextMessageAsync(callback.From.Id, $"RAG resumed", cancellationToken: ct);
+							break;
+					}
+				}
 			}
+		}
+
+		protected override async Task HandleDocumentAsync(TGMessage message, Document document, CancellationToken ct)
+		{
+			var stream = new MemoryStream();
+
+			await Client.NativeClient.GetInfoAndDownloadFileAsync(document.FileId, stream, ct);
+
+			var type = document.MimeType ?? "application/octet-stream";
+			var rawData = stream.ToArray();
+
+			var text = _textExtractor.Extract(rawData, type);
+			UserState state = GetState(message.Chat.Id);
+
+			var ragContext = await _rag.CreateContextAsync(text);
+
+			state.ChangeRAGContext(ragContext);
 		}
 
 		private UserState GetState(long userId)
@@ -176,15 +244,66 @@ namespace TelegramAIBot
 
 		private class UserState
 		{
-			public UserState(IChat chat)
+			private readonly IChat _baseChat;
+
+
+			public UserState(IChat baseChat)
 			{
-				Chat = chat;
+				_baseChat = baseChat;
+				Chat = _baseChat;
 			}
 
 
 			public string? ActiveParameterToChange { get; set; }
 
-			public IChat Chat { get; }
+			public RAGContext? RAGContext { get; private set; }
+
+			public IChat Chat { get; private set; }
+
+			public RAGState CurrentRAGState { get; private set; }
+
+
+			public void ChangeRAGContext(RAGContext? context)
+			{
+				RAGContext = context;
+
+				if (context is null)
+				{
+					Chat = _baseChat;
+					CurrentRAGState = RAGState.Disabled;
+				}
+				else
+				{
+					Chat = new RAGChatDecorator(context, _baseChat);
+					CurrentRAGState = RAGState.Enabled;
+				}
+			}
+
+			public void SuspendRAG()
+			{
+				if (CurrentRAGState != RAGState.Enabled)
+					throw new InvalidOperationException();
+
+				CurrentRAGState = RAGState.Suspended;
+				Chat = _baseChat;
+			}
+
+			public void ResumeRAG()
+			{
+				if (CurrentRAGState != RAGState.Suspended)
+					throw new InvalidOperationException();
+
+				CurrentRAGState = RAGState.Enabled;
+				Chat = new RAGChatDecorator(RAGContext!, _baseChat);
+			}
+
+
+			public enum RAGState
+			{
+				Disabled = default,
+				Suspended,
+				Enabled
+			}
 		}
 	}
 }

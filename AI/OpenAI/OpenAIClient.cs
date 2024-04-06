@@ -64,7 +64,7 @@ namespace TelegramAIBot.AI.OpenAI
 			return new Chat(this);
 		}
 
-		public async Task<TextEmbedding> CreateEmbedding(string model, string text)
+		public async Task<TextEmbedding> CreateEmbeddingAsync(string model, string text)
 		{
 			var request = new
 			{

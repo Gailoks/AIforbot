@@ -18,10 +18,10 @@ namespace TelegramAIBot.Telegram
 		private readonly TelegramBotClient _client;
 		private readonly ITelegramModule _module;
 		private readonly ConcurrentDictionary<long, SemaphoreSlim> _sync = [];
-		private readonly ILogger<TelegramHandler>? _logger;
+		private readonly ILogger? _logger;
 
 
-		public TelegramHandler(TelegramBotClient client, ITelegramModule module, ILogger<TelegramHandler>? logger = null)
+		public TelegramHandler(TelegramBotClient client, ITelegramModule module, ILogger? logger)
 		{
 			_client = client;
 			_module = module;

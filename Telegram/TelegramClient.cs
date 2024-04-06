@@ -24,7 +24,7 @@ namespace TelegramAIBot.Telegram
 			_module = module;
 			_logger = logger;
 			_nativeClient = new TelegramBotClient(configuration.Value.Token);
-			_handler = new TelegramHandler(_nativeClient, module);
+			_handler = new TelegramHandler(_nativeClient, module, logger);
 		}
 
 

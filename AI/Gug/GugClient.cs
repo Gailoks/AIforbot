@@ -31,7 +31,7 @@ namespace TelegramAIBot.AI.Gug
 			};
 		}
 
-		public Task<TextEmbedding> CreateEmbedding(string model, string text)
+		public Task<TextEmbedding> CreateEmbeddingAsync(string model, string text)
 		{
 			return Task.FromResult(new TextEmbedding(new float[] { text.GetHashCode() }));
 		}
