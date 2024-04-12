@@ -205,6 +205,8 @@ namespace TelegramAIBot
 			var ragContext = await _rag.CreateContextAsync(text);
 
 			state.ChangeRAGContext(ragContext);
+
+			await Client.NativeClient.SendTextMessageAsync(message.Chat, $"RAG started successfully.\nHere is first text block:\n{ragContext.ToString()}", cancellationToken:ct);
 		}
 
 		private UserState GetState(long userId)

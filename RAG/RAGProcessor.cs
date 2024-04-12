@@ -41,7 +41,7 @@ namespace TelegramAIBot.RAG
 
 		public class Configuration
 		{
-			public int ChuckSize { get; init; } = 2000;
+			public int ChuckSize { get; init; } = 800;
 
 			public int ChuckOverlapSize { get; init; } = 200;
 		}
