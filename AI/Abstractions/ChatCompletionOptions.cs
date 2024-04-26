@@ -5,6 +5,7 @@
 		string? SystemPrompt = null,
 		double? TopP = null,
 		double? Temperature = null,
-		double? FrequencyPenalty = null
+		double? FrequencyPenalty = null,
+		string[]? Stop = null
 	);
 }
