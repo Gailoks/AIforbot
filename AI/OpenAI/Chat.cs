@@ -32,7 +32,6 @@ namespace TelegramAIBot.AI.OpenAI
 				})
 				.Prepend(new { content = (object)(options.SystemPrompt ?? "You are useful assistant"), role = "system" })
 				.ToArray();
-
 			var request =
 			new
 			{
@@ -40,6 +39,7 @@ namespace TelegramAIBot.AI.OpenAI
 				top_p = options.TopP,
 				temperature = options.Temperature,
 				model = options.ModelName,
+				stop = options.Stop ?? ["<|eot_id|>"],
 
 				messages = apiMessages
 			};
