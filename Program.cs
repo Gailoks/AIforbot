@@ -9,63 +9,62 @@ using TelegramAIBot.UserData;
 using TelegramAIBot.UserData.InMemory;
 using TomLonghurst.ReadableTimeSpan;
 using TelegramAIBot.AI.Abstractions;
-using TelegramAIBot.RAG;
+using TelegramAIBot.Telegram.Sequences;
 
 namespace TelegramAIBot
 {
-	class Program
-	{
-		public static readonly EventId GugClientUsedLOG = new EventId(12, nameof(GugClientUsedLOG)).Form();
+    class Program
+    {
+        public static readonly EventId GugClientUsedLOG = new EventId(12, nameof(GugClientUsedLOG)).Form();
 
 
-		public static void Main(string[] args)
-		{
-			ReadableTimeSpan.EnableConfigurationBinding();
+        public static void Main(string[] args)
+        {
+            ReadableTimeSpan.EnableConfigurationBinding();
 
-			var config = new ConfigurationBuilder().AddJsonFile("config.json").Build();
+            var config = new ConfigurationBuilder().AddJsonFile("config.json").Build();
 
-			var serviceCollection = new ServiceCollection()
-				.AddSingleton<IUserDataRepository, InMemoryUserDataRepository>()
-				.AddSingleton<ITelegramModule, TelegramModule>()
+            var serviceCollection = new ServiceCollection()
+                .AddSingleton<ISequenceRepository, ReflectionSequenceRepository>()
+                .AddTransient<ITelegramEventHandler, SequenceProcessor>()
+                .AddSingleton<ITelegramSequenceModule, TelegramModule>()
 
-				.AddLogging(sb => sb.AddConsole().SetMinimumLevel(LogLevel.Trace))
+                .AddLogging(sb => sb.AddConsole().SetMinimumLevel(LogLevel.Trace))
 
-				.Configure<TelegramClient.Configuration>(config.GetSection("Telegram"))
-				.AddSingleton<TelegramClient>()
-
-				.AddTransient<TextExtractor>()
-
-				.Configure<RAGProcessor.Configuration>(config.GetSection("RAG"))
-				.AddTransient<RAGProcessor.TextEmbeddingGenerator>(sp => async (text) => await sp.GetRequiredService<IAIClient>().CreateEmbeddingAsync("gpt-3.5-turbo", text))
-				.AddTransient<RAGProcessor>()
-			;
+                .Configure<TelegramClient.Options>(config.GetSection("Telegram"))
+                .AddSingleton<TelegramClient>();
 
 
-			var isGugClientImplementationUsed = args.Contains("--useGugClient");
-			if (isGugClientImplementationUsed)
-			{
-				serviceCollection
-					.Configure<GugClient.Configuration>(config.GetSection("AI:Gug"))
-					.AddSingleton<IAIClient, GugClient>()
-				;
-			}
-			else
-			{
-				serviceCollection
-					.Configure<OpenAIClient.Configuration>(config.GetSection("AI:OpenAI"))
-					.AddSingleton<IAIClient, OpenAIClient>()
-				;
-			}
+            var isGugClientImplementationUsed = args.Contains("--useGugClient");
+            if (isGugClientImplementationUsed)
+            {
+                serviceCollection
+                    .Configure<GugClient.Configuration>(config.GetSection("AI:Gug"))
+                    .AddSingleton<IAIClient, GugClient>()
+                ;
+            }
+            else
+            {
+                serviceCollection
+                    .Configure<OpenAIClient.Configuration>(config.GetSection("AI:OpenAI"))
+                    .AddSingleton<IAIClient, OpenAIClient>()
+                ;
+            }
 
-			var services = serviceCollection.BuildServiceProvider();
-			var logger = services.GetRequiredService<ILogger<Program>>();
+            var services = serviceCollection.BuildServiceProvider();
+            var logger = services.GetRequiredService<ILogger<Program>>();
 
-			if (isGugClientImplementationUsed)
-				logger.Log(LogLevel.Information, GugClientUsedLOG, "Using gug version of ai client");
+            if (isGugClientImplementationUsed)
+                logger.Log(LogLevel.Information, GugClientUsedLOG, "Using gug version of ai client");
 
-			services.GetRequiredService<TelegramClient>().Start();
+            var telegramClient = services.GetRequiredService<TelegramClient>();
 
-			Thread.Sleep(-1);
-		}
-	}
+            var repository = services.GetRequiredService<ISequenceRepository>();
+            repository.Load(telegramClient);
+
+            telegramClient.Start();
+
+            Thread.Sleep(-1);
+        }
+    }
 }

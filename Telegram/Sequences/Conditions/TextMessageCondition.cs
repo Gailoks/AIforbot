@@ -7,7 +7,7 @@ class TextMessageCondition : SequenceTrigger
     private Message? _capturedMessage = null;
 
 
-    public Message? CapturedMessage => _capturedMessage ??
+    public Message CapturedMessage => _capturedMessage ??
         throw new InvalidOperationException("Enable to get property before waiting");
 
 

@@ -1,6 +1,6 @@
 namespace TelegramAIBot.Telegram.Sequences;
 
-public interface ITelegramSequenceModule
+interface ITelegramSequenceModule
 {
-    
+    public void BindClient(TelegramClient client);
 }
