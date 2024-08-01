@@ -1,50 +1,59 @@
-﻿using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
 using Telegram.Bot;
+using Telegram.Bot.Polling;
+using Telegram.Bot.Types;
+using Telegram.Bot.Types.Enums;
 
-namespace TelegramAIBot.Telegram
+namespace TelegramAIBot.Telegram;
+
+class TelegramClient(IOptions<TelegramClient.Options> options, ITelegramEventHandler handler, ILogger<TelegramClient>? logger = null)
 {
-	internal sealed class TelegramClient
-	{
-		public static readonly EventId ClientStartedLOG = new EventId(11, nameof(ClientStartedLOG)).Form();
+    public const char CommandPrefix = '/';
 
+    private readonly ITelegramEventHandler _handler = handler;
+    private readonly ILogger? _logger = logger;
+    public TelegramBotClient Client { get; } = new(options.Value.Token);
 
-		public const string CommandPrefix = "/";
+    public void Start()
+    {
+        Client.StartReceiving(HandleUpdateAsync, HandleExceptionAsync, new ReceiverOptions()
+        {
+            AllowedUpdates = [UpdateType.Message, UpdateType.CallbackQuery]
+        });
 
+        _logger?.LogInformation("Bot started receiving");
+        Thread.Sleep(-1);   
+    }
 
-		private readonly Configuration _configuration;
-		private readonly ITelegramModule _module;
-		private readonly ILogger<TelegramClient>? _logger;
-		private readonly TelegramHandler _handler;
-		private readonly TelegramBotClient _nativeClient;
+    private async Task HandleUpdateAsync(ITelegramBotClient client, Update update, CancellationToken ct)
+    {
+        _logger?.LogTrace("An update received: {Update}", JsonConvert.SerializeObject(update));
+        switch (update.Type)
+        {
+            case UpdateType.Message:
+                Message message = update.Message!;
+                if (message.Type == MessageType.Text && message.Text !.StartsWith(CommandPrefix))
+                    await _handler.HandleCommandAsync(message.Text[1..], message);
+                else await _handler.HandleMessageAsync(message);
+                break;
+            case UpdateType.CallbackQuery:
 
+                CallbackQuery callbackQuery = update.CallbackQuery!;
+                await _handler.HandleButtonAsync(callbackQuery.Message!, callbackQuery.Data!);
+                break;
+        }
+    }
 
-		public TelegramClient(IOptions<Configuration> configuration, ITelegramModule module, ILogger<TelegramClient>? logger = null)
-		{
-			_configuration = configuration.Value;
-			_module = module;
-			_logger = logger;
-			_nativeClient = new TelegramBotClient(configuration.Value.Token);
-			_handler = new TelegramHandler(_nativeClient, module, logger);
-		}
+    private Task HandleExceptionAsync(ITelegramBotClient client, Exception exception, CancellationToken ct)
+    {
+        logger?.LogError(exception, "Exception in telegram client");
+        return Task.CompletedTask;
+    }
 
+    public class Options
+    {
+        public required string Token { get; init; }
 
-		public TelegramBotClient NativeClient => _nativeClient;
-
-		public Configuration ActiveConfiguration => _configuration;
-
-
-		public void Start()
-		{
-			_module.BindClient(this);
-			_handler.StartPooling();
-
-			_logger?.Log(LogLevel.Information, ClientStartedLOG, "Telegram client is started successfully");
-		}
-
-
-		public class Configuration
-		{
-			public required string Token { get; init; }
-		}
-	}
+    }
 }
