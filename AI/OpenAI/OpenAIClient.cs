@@ -1,8 +1,6 @@
-﻿using System.Text.Json;
-using System.Text;
+﻿using System.Text;
 using TelegramAIBot.AI.Abstractions;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
 
 namespace TelegramAIBot.AI.OpenAI
 {
@@ -11,6 +9,9 @@ namespace TelegramAIBot.AI.OpenAI
 		private readonly Configuration _configuration;
 		private readonly HttpClient _httpClient = new();
 		private readonly SemaphoreSlim _requestSync = new(3, 3);
+
+
+		public Configuration InternalConfiguration => _configuration;
 
 
 		public OpenAIClient(IOptions<Configuration> configuration)
@@ -59,25 +60,9 @@ namespace TelegramAIBot.AI.OpenAI
 			return new ServerResponse<TResponse>(responseAsObject, response);
 		}
 
-		public IChat CreateChat()
+		public IAIChat CreateChat()
 		{
 			return new Chat(this);
-		}
-
-		public async Task<TextEmbedding> CreateEmbeddingAsync(string model, string text)
-		{
-			var request = new
-			{
-				model = model,
-				input = text
-			};
-
-			var response = await SendMessageAsync<JObject>("v1/embeddings", request, HttpMethod.Post);
-
-			dynamic body = response.ResponseBody;
-			var embedding = (float[])body.data[0].embedding.ToObject<float[]>();
-
-			return new TextEmbedding(embedding);
 		}
 
 
@@ -88,6 +73,8 @@ namespace TelegramAIBot.AI.OpenAI
 			public int RequestConcurrentLimit { get; init; } = 3;
 
 			public required string Token { get; init; }
+
+			public required string ModelName { get; init; }
 		}
 
 		public record ServerResponse<TResponse>(TResponse ResponseBody, HttpResponseMessage RawServerResponse) where TResponse : notnull;
