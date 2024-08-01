@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using Telegram.Bot;
@@ -7,41 +8,64 @@ using Telegram.Bot.Types.Enums;
 
 namespace TelegramAIBot.Telegram;
 
-class TelegramClient(IOptions<TelegramClient.Options> options, ITelegramEventHandler handler, ILogger<TelegramClient>? logger = null)
+class TelegramClient(IOptions<TelegramClient.Options> options, ITelegramEventHandler handler, ILogger<TelegramClient>? logger = null) : TelegramBotClient(options.Value.Token)
 {
     public const char CommandPrefix = '/';
 
+    private readonly ConcurrentDictionary<long, SemaphoreSlim> _sync = [];
     private readonly ITelegramEventHandler _handler = handler;
     private readonly ILogger? _logger = logger;
-    public TelegramBotClient Client { get; } = new(options.Value.Token);
-
     public void Start()
     {
-        Client.StartReceiving(HandleUpdateAsync, HandleExceptionAsync, new ReceiverOptions()
+        this.StartReceiving(HandleUpdateAsync, HandleExceptionAsync, new ReceiverOptions()
         {
             AllowedUpdates = [UpdateType.Message, UpdateType.CallbackQuery]
         });
 
         _logger?.LogInformation("Bot started receiving");
-        Thread.Sleep(-1);   
     }
 
-    private async Task HandleUpdateAsync(ITelegramBotClient client, Update update, CancellationToken ct)
+    private Task HandleUpdateAsync(ITelegramBotClient botClient, Update update, CancellationToken cancellationToken)
     {
-        _logger?.LogTrace("An update received: {Update}", JsonConvert.SerializeObject(update));
-        switch (update.Type)
-        {
-            case UpdateType.Message:
-                Message message = update.Message!;
-                if (message.Type == MessageType.Text && message.Text !.StartsWith(CommandPrefix))
-                    await _handler.HandleCommandAsync(message.Text[1..], message);
-                else await _handler.HandleMessageAsync(message);
-                break;
-            case UpdateType.CallbackQuery:
+        HandleInternalUpdateAsync(update);
+        return Task.CompletedTask;
+    }
 
-                CallbackQuery callbackQuery = update.CallbackQuery!;
-                await _handler.HandleButtonAsync(callbackQuery.Message!, callbackQuery.Data!);
-                break;
+    private async void HandleInternalUpdateAsync(Update update)
+    {
+        SemaphoreSlim? semaphore = null;
+        _logger?.LogTrace("An update received: {Update}", JsonConvert.SerializeObject(update));
+        try
+        {
+            switch (update.Type)
+            {
+                case UpdateType.Message:
+                    Message message = update.Message!;
+                    await waitSemaphoreAsync(message.Chat.Id, out semaphore);
+                    if (message.Type == MessageType.Text && message.Text!.StartsWith(CommandPrefix))
+                        await _handler.HandleCommandAsync(message.Text[1..], message);
+                    else await _handler.HandleMessageAsync(message);
+                    break;
+                case UpdateType.CallbackQuery:
+
+                    CallbackQuery callbackQuery = update.CallbackQuery!;
+                    await waitSemaphoreAsync(callbackQuery.From.Id, out semaphore);
+                    await _handler.HandleButtonAsync(callbackQuery.Message!, callbackQuery.Data!);
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Exception during processing update");
+        }
+        finally
+        {
+            semaphore?.Release();
+        }
+        Task waitSemaphoreAsync(long chatId, out SemaphoreSlim semaphore)
+        {
+            semaphore = _sync.GetOrAdd(chatId, (_) => new SemaphoreSlim(1));
+            return semaphore.WaitAsync();
         }
     }
 
