@@ -9,7 +9,7 @@ class ReflectionSequenceRepository(IEnumerable<ITelegramSequenceModule> modules)
     private readonly List<TelegramSequence> _sequences = [];
 
 
-    public void Load()
+    public void Load(TelegramClient telegramClient)
     {
         foreach (var module in _modules)
         {
@@ -20,6 +20,7 @@ class ReflectionSequenceRepository(IEnumerable<ITelegramSequenceModule> modules)
                 .Where(s => s.Attribute is not null)
                 .Select(s =>
                 {
+                    module.BindClient(telegramClient);
                     var sequenceDelegate = s.Method.CreateDelegate<TelegramSequenceDelegate>(module);
                     return new TelegramSequence(sequenceDelegate, s.Attribute!.Trigger);
                 });
