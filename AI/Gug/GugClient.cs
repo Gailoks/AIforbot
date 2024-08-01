@@ -18,23 +18,18 @@ namespace TelegramAIBot.AI.Gug
 		}
 
 
-		public IChat CreateChat()
+		public IAIChat CreateChat()
 		{
-			var chatId = Guid.NewGuid();
-
-
-			_logger?.Log(LogLevel.Information, ChatCreatedLOG, "New chat with id {ChatId} created", chatId);
-
-			return new GugChat(_logger, chatId)
+			var chat = new GugChat(_logger)
 			{
 				ChatCompletionCreationOperationDuration = _configuration.ChatCompletionCreationOperationDuration
 			};
+
+			_logger?.Log(LogLevel.Information, ChatCreatedLOG, "New gug chat with id {Id} created", chat.Id);
+
+			return chat;
 		}
 
-		public Task<TextEmbedding> CreateEmbeddingAsync(string model, string text)
-		{
-			return Task.FromResult(new TextEmbedding(new float[] { text.GetHashCode() }));
-		}
 
 		public class Configuration
 		{

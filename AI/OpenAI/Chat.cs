@@ -4,63 +4,64 @@ using TelegramAIBot.AI.Abstractions;
 
 namespace TelegramAIBot.AI.OpenAI
 {
-	internal class Chat : AbstractChat
+	internal class Chat : IAIChat
 	{
+		public const string CompletionEndpoint = "v1/chat/completions";
+
+
 		private readonly OpenAIClient _client;
 
 
-		public Chat(OpenAIClient client) : base(Guid.NewGuid()) //TODO: fix
+		public Chat(OpenAIClient client)
 		{
 			_client = client;
 		}
 
 
-		protected override async Task<Message> CreateChatCompletionAsyncInternal()
-		{
-			ChatCompletionOptions options = Options;
+		public ChatOptions Options { get; set; } = new();
 
-			var visitor = new ContentVisitor();
+		public IList<Message> Messages { get; } = new List<Message>();
+
+		public Guid Id { get; } = Guid.NewGuid();
+
+
+		public async Task<Message> CreateChatCompletionAsync()
+		{
+			ChatOptions options = Options;
+
 			var messages = Messages;
 			var apiMessages = messages
 				.Select(msg =>
 				{
 					return new
 					{
-						content = msg.Content.Visit(visitor),
+						content = msg.Content,
 						role = msg.Role.ToString().ToLower()
 					};
 				})
-				.Prepend(new { content = (object)(options.SystemPrompt ?? "You are useful assistant"), role = "system" })
+				.Prepend(new { content = options.SystemPrompt ?? "You are useful assistant", role = "system" })
 				.ToArray();
+
 			var request =
 			new
 			{
-				repeat_penalty = options.FrequencyPenalty,
-				top_p = options.TopP,
-				temperature = options.Temperature,
-				model = options.ModelName,
-				stop = options.Stop ?? ["<|eot_id|>"],
-
+				model = _client.InternalConfiguration.ModelName,
 				messages = apiMessages
 			};
 
-			var response = await _client.SendMessageAsync<JObject>("v1/chat/completions", request, HttpMethod.Post);
+			var response = await _client.SendMessageAsync<JObject>(CompletionEndpoint, request, HttpMethod.Post);
 
 			dynamic choice = response.ResponseBody;
-			var content = choice.choices[0].message.content.ToObject<string>();
+			var content = (string)choice.choices[0].message.content;
 
-			var message = new Message(MessageRole.Assistant, new TextMessageContent(content));
+			var message = new Message(MessageRole.Assistant, content);
 
 			return message;
 		}
 
-
-		private class ContentVisitor : IMessageContentVisitor<object>
+		public void ModifyOptions(Func<ChatOptions, ChatOptions> modification)
 		{
-			public object VisitText(TextMessageContent textContent)
-			{
-				return textContent.Text;
-			}
+			Options = modification(Options);
 		}
 	}
 }

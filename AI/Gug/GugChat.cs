@@ -1,52 +1,67 @@
-﻿using TelegramAIBot.AI.Abstractions;
+﻿using System.Collections.ObjectModel;
+using TelegramAIBot.AI.Abstractions;
 
-namespace TelegramAIBot.AI.Gug
+namespace TelegramAIBot.AI.Gug;
+
+internal sealed class GugChat : IAIChat
 {
-	internal sealed class GugChat : AbstractChat
+	public static readonly EventId ChatCompletionCreatedLOG = new EventId(31, nameof(ChatCompletionCreatedLOG)).Form();
+	public static readonly EventId ChatMessagesChangedLOG = new EventId(32, nameof(ChatMessagesChangedLOG)).Form();
+	public static readonly EventId ChatOptionsChangedLOG = new EventId(33, nameof(ChatOptionsChangedLOG)).Form();
+
+
+	private readonly ILogger<GugClient>? _logger;
+	private readonly ObservableCollection<Message> _messages;
+	private ChatOptions _options = new();
+
+
+	public TimeSpan? ChatCompletionCreationOperationDuration { get; init; } = null;
+
+	public ChatOptions Options { get => _options; set => _options = value; }
+
+	public IList<Message> Messages => _messages;
+	
+	public Guid Id { get; } = Guid.NewGuid();
+
+
+	public GugChat(ILogger<GugClient>? logger = null)
 	{
-		public static readonly EventId ChatCompletionCreatedLOG = new EventId(31, nameof(ChatCompletionCreatedLOG)).Form();
-		public static readonly EventId ChatMessagesChangedLOG = new EventId(32, nameof(ChatMessagesChangedLOG)).Form();
-		public static readonly EventId ChatOptionsChangedLOG = new EventId(33, nameof(ChatOptionsChangedLOG)).Form();
-
-
-		private readonly ILogger<GugClient>? _logger;
-
-
-		public TimeSpan? ChatCompletionCreationOperationDuration { get; init; } = null;
-
-
-		public GugChat(ILogger<GugClient>? logger, Guid id) : base(id)
+		_logger = logger;
+		_messages = new ObservableCollection<Message>();
+		_messages.CollectionChanged += (s, e) =>
 		{
-			_logger = logger;
-			MessagesChanged += (old) => _logger?.Log(LogLevel.Debug, ChatMessagesChangedLOG, "Chat {ChatId} messages changed", id);
-			OptionsChanged += (old) => _logger?.Log(LogLevel.Debug, ChatOptionsChangedLOG, "Chat {ChatId} options changed to {Options}", id, Options);
-		}
+			_logger?.Log(LogLevel.Trace, ChatMessagesChangedLOG, "Chat messages changes, action: {e}", e);
+		};
+	}
 
+	public void ModifyOptions(Func<ChatOptions, ChatOptions> modification)
+	{
+		Options = modification(Options);
+	}
 
-		protected override async Task<Message> CreateChatCompletionAsyncInternal()
-		{
-			var messages = Messages;
-			var lastMessageContent = messages[messages.Count - 1].Content;
+	public async Task<Message> CreateChatCompletionAsync()
+	{
+		var messages = Messages;
+		var lastMessageContent = messages[messages.Count - 1].Content;
 
-			var result = new Message(MessageRole.Assistant, new TextMessageContent(
-				$"""
+		var result = new Message(MessageRole.Assistant,
+			$"""
 				Answer of Assistant to previous message
 				Previous message:
-				`{(lastMessageContent.IsPresentableAsString ? lastMessageContent.PresentAsString() : "Unable to present as string")}`
+				`{lastMessageContent}`
 
 				Options: `{Options}`
-				"""
-			));
+			"""
+		);
 
 
-			if (ChatCompletionCreationOperationDuration is not null)
-				await Task.Delay(ChatCompletionCreationOperationDuration.Value);
+		if (ChatCompletionCreationOperationDuration is not null)
+			await Task.Delay(ChatCompletionCreationOperationDuration.Value);
 
-			_logger?.Log(LogLevel.Debug, ChatCompletionCreatedLOG,
-				"Chat completion created with Options {Options}. Previous message had content {Content}",
-				Options, lastMessageContent);
-			
-			return result;
-		}
+		_logger?.Log(LogLevel.Debug, ChatCompletionCreatedLOG,
+			"Chat completion created with Options {Options}. Previous message had content {Content}",
+			Options, lastMessageContent);
+
+		return result;
 	}
 }
