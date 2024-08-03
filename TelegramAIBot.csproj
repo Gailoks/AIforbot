@@ -6,6 +6,9 @@
     <RootNamespace>TelegramAIBot</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <DockerfileContext>.</DockerfileContext>
+    <Configurations>Debug;Release;Docker</Configurations>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,13 +21,14 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" />
     <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
+    <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.19.5" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
     <PackageReference Include="Telegram.Bot" Version="19.0.0" />
     <PackageReference Include="TomLonghurst.ReadableTimeSpan" Version="1.0.5" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="config.json">
+    <None Update="config.json" Condition="$(Configuration) != 'Docker'">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
   </ItemGroup>
