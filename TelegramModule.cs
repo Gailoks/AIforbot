@@ -1,7 +1,6 @@
 using TelegramAIBot.Telegram.Sequences;
 using TelegramAIBot.Telegram;
 using TelegramAIBot.Telegram.Sequences.Conditions;
-using Telegram.Bot.Types;
 using Telegram.Bot;
 using TelegramAIBot.AI.Abstractions;
 using TGMessage = Telegram.Bot.Types.Message;
@@ -22,13 +21,18 @@ internal class TelegramModule(IAIClient aiClient) : ITelegramSequenceModule
 
     public void BindClient(TelegramClient client) => _client = client;
 
+    [TelegramSequence(typeof(CommandCondition), "help")]
+    public async IAsyncEnumerator<WaitCondition> ProcessCommandHelpAsync(TGMessage message, SequenceTrigger trigger)
+    {
+        await Client.SendTextMessageAsync(message.Chat, "Available commands:\nstart - start new chat session\nhelp - see list of commands");
+        yield break;
+    }
 
     [TelegramSequence(typeof(CommandCondition), "start")]
     public async IAsyncEnumerator<WaitCondition> ProcessCommandStartAsync(TGMessage message, SequenceTrigger trigger)
     {
-        await Client.SendTextMessageAsync(message.Chat, "New session started, .exit to finish");
+        await Client.SendTextMessageAsync(message.Chat, "New session started, to start new use /start");
         var aiChat = _aiClient.CreateChat();
-
 
         while (true)
         {
@@ -48,7 +52,14 @@ internal class TelegramModule(IAIClient aiClient) : ITelegramSequenceModule
                     break;
             }
 
-            await Client.SendTextMessageAsync(message.Chat, newMessageTask.Result.Content);
+            try
+            {
+                await Client.SendTextMessageAsync(message.Chat, newMessageTask.Result.Content, parseMode: ParseMode.Markdown);
+            }
+            catch
+            {
+                await Client.SendTextMessageAsync(message.Chat, newMessageTask.Result.Content);
+            }
         }
     }
 }
