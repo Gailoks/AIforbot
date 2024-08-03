@@ -5,24 +5,29 @@ using Microsoft.Extensions.DependencyInjection;
 using TelegramAIBot.AI.Gug;
 using TelegramAIBot.AI.OpenAI;
 using TelegramAIBot.Telegram;
-using TelegramAIBot.UserData;
-using TelegramAIBot.UserData.InMemory;
 using TomLonghurst.ReadableTimeSpan;
 using TelegramAIBot.AI.Abstractions;
 using TelegramAIBot.Telegram.Sequences;
 
 namespace TelegramAIBot
 {
-    class Program
+	class Program
     {
         public static readonly EventId GugClientUsedLOG = new EventId(12, nameof(GugClientUsedLOG)).Form();
 
 
-        public static void Main(string[] args)
-        {
-            ReadableTimeSpan.EnableConfigurationBinding();
+		public static void Main(string[] args)
+		{
+			ReadableTimeSpan.EnableConfigurationBinding();
 
-            var config = new ConfigurationBuilder().AddJsonFile("config.json").Build();
+			var config = new ConfigurationBuilder()
+				.AddInMemoryCollection(new Dictionary<string, string?>()
+				{
+					["Telegram:Token"] = Environment.GetEnvironmentVariable("TelegramAIBot_TGToken"),
+					["AI:OpenAI:Token"] = Environment.GetEnvironmentVariable("TelegramAIBot_OpenAIToken")
+				})
+				.AddJsonFile("config.json")
+				.Build();
 
             var serviceCollection = new ServiceCollection()
                 .AddSingleton<ISequenceRepository, ReflectionSequenceRepository>()

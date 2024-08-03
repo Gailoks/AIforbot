@@ -1,12 +1,18 @@
 {
   "profiles": {
-    "TelegramAIBot (Gug)": {
+    "Native-GugAI": {
       "commandName": "Project",
       "commandLineArgs": "--useGugClient"
     },
-    "TelegramAIBot (Real)": {
-      "commandName": "Project",
-      "commandLineArgs": ""
+    "Native-RealAI": {
+      "commandName": "Project"
+    },
+    "Docker-GugAI": {
+      "commandName": "Docker",
+      "commandLineArgs": "--useGugClient"
+    },
+    "Docker-RealAI": {
+      "commandName": "Docker"
     }
   }
 }

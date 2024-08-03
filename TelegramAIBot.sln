@@ -8,11 +8,14 @@ EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
+		Docker|Any CPU = Docker|Any CPU
 		Release|Any CPU = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{5CEAB7A2-E300-4ECE-8DD7-DADBD6680CD9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{5CEAB7A2-E300-4ECE-8DD7-DADBD6680CD9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5CEAB7A2-E300-4ECE-8DD7-DADBD6680CD9}.Docker|Any CPU.ActiveCfg = Docker|Any CPU
+		{5CEAB7A2-E300-4ECE-8DD7-DADBD6680CD9}.Docker|Any CPU.Build.0 = Docker|Any CPU
 		{5CEAB7A2-E300-4ECE-8DD7-DADBD6680CD9}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5CEAB7A2-E300-4ECE-8DD7-DADBD6680CD9}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
