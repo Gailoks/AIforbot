@@ -8,6 +8,7 @@ using TelegramAIBot.Telegram;
 using TomLonghurst.ReadableTimeSpan;
 using TelegramAIBot.AI.Abstractions;
 using TelegramAIBot.Telegram.Sequences;
+using TelegramAIBot.Telemetry;
 
 namespace TelegramAIBot
 {
@@ -37,7 +38,11 @@ namespace TelegramAIBot
                 .AddLogging(sb => sb.AddConsole().SetMinimumLevel(LogLevel.Trace))
 
                 .Configure<TelegramClient.Options>(config.GetSection("Telegram"))
-                .AddSingleton<TelegramClient>();
+                .AddSingleton<TelegramClient>()
+				
+				.Configure<FileBasedTelemetryStorage.Options>(config.GetSection("Telemetry"))
+				.AddTransient<ITelemetryStorage, FileBasedTelemetryStorage>()
+			;
 
 
             var isGugClientImplementationUsed = args.Contains("--useGugClient");
