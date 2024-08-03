@@ -5,7 +5,6 @@ COPY . .
 RUN dotnet publish ./TelegramAIBot.csproj -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/runtime:8.0 AS app
-USER app
 WORKDIR /app/
 COPY --from=build /app/publish .
 ENTRYPOINT ["dotnet", "TelegramAIBot.dll"]
