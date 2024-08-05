@@ -42,6 +42,11 @@ namespace TelegramAIBot
 				
 				.Configure<FileBasedTelemetryStorage.Options>(config.GetSection("Telemetry"))
 				.AddTransient<ITelemetryStorage, FileBasedTelemetryStorage>()
+
+				.AddLocalization(options =>
+				{
+					options.ResourcesPath = "Translations";
+				})
 			;
 
 
