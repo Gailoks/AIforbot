@@ -37,6 +37,23 @@ internal class TelegramModule(IAIClient aiClient, ITelemetryStorage telemetry, I
         yield break;
     }
 
+    [TelegramSequence(typeof(CommandCondition), "system")]
+    public async IAsyncEnumerator<WaitCondition> ProcessCommandSystem(TGMessage message, SequenceTrigger trigger)
+    {
+        long userId = message.From!.Id;
+        if (_sessions.TryGetValue(userId, out var session) == false)
+            yield break;
+        var systemWaitCondition = new TextMessageCondition();
+
+        await Client.SendTextMessageAsync(userId, _localizer.Get((await _userRepository.GetAsync(userId)).CultureInfo, "WaitingNewSystemPrompt"));
+
+        yield return systemWaitCondition;
+
+        session.SystemPrompt = systemWaitCondition.CapturedMessage.Text;
+
+        await Client.SendTextMessageAsync(userId, _localizer.Get((await _userRepository.GetAsync(userId)).CultureInfo, "SystemPromptSet"));
+    }
+
     [TelegramSequence(typeof(CommandCondition), "start")]
     public async IAsyncEnumerator<WaitCondition> ProcessCommandStartAsync(TGMessage message, SequenceTrigger trigger)
     {
