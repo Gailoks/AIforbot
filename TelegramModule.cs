@@ -10,6 +10,7 @@ using TelegramAIBot.User;
 using System.Collections.Concurrent;
 using Telegram.Bot.Types.ReplyMarkups;
 using System.Globalization;
+using Telegram.Bot.Types.Enums;
 
 
 namespace TelegramAIBot;
@@ -107,8 +108,18 @@ internal class TelegramModule(IAIClient aiClient, ITelemetryStorage telemetry, I
         long userId = message.From!.Id;
         if (_sessions.TryGetValue(userId, out var session) == false)
             yield break;
-        await Client.SendTextMessageAsync(userId, await session.AskAsync(message.Text!)); // TODO: for other types
+
+		var question = message.Text!;
+		var task = session.AskAsync(question);
+
+		while (true)
+		{
+			await Client.SendChatActionAsync(userId, ChatAction.Typing);
+			await Task.WhenAny(task, Task.Delay(4000));
+			if (task.IsCompleted)
+				break;
+		}
+
+		await Client.SendTextMessageAsync(userId, task.Result); // TODO: for other types
     }
-
-
 }
