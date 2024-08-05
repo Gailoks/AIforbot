@@ -1,7 +1,7 @@
-﻿
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using System.Globalization;
-using System.Runtime.Serialization;
+using System.IO.Compression;
+using System.Text;
 
 namespace TelegramAIBot.Telemetry;
 
@@ -18,15 +18,23 @@ internal sealed class FileBasedTelemetryStorage : ITelemetryStorage
 
 	public async Task CreateEntryAsync(string user, TelemetryEntry entry)
 	{
-		var directory = Path.Combine(_options.Path, user);
-		if (Directory.Exists(directory) == false)
-			Directory.CreateDirectory(directory);
+		if (Directory.Exists(_options.Path) == false)
+			Directory.CreateDirectory(_options.Path);
 
+		var archivePath = Path.Combine(_options.Path, user + ".zip");
+		using var file = File.Open(archivePath, FileMode.OpenOrCreate, FileAccess.ReadWrite);
+		using var archive = new ZipArchive(file, ZipArchiveMode.Update, leaveOpen: true);
+		
 		var now = DateTime.UtcNow;
-		var fileName = now.ToString("dd_MM_yyyy") + ".telemetry";
-		var fullFileName = Path.Combine(directory, fileName);
+		var entryName = now.ToString("dd_MM_yyyy") + ".telemetry";
 
-		using var writer = File.AppendText(fullFileName);
+		var archiveEntry = archive.GetEntry(entryName);
+
+		archiveEntry ??= archive.CreateEntry(entryName, CompressionLevel.SmallestSize);
+
+		using var entryStream = archiveEntry.Open();
+		entryStream.Seek(entryStream.Length, SeekOrigin.Begin);
+		using var writer = new StreamWriter(entryStream, Encoding.UTF8);
 
 		await WriteEntryAsync(entry, now, writer);
 
