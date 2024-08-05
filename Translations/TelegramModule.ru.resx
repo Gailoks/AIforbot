@@ -133,4 +133,8 @@
     <value>Отправь новое системное сообщение.</value>
     <comment/>
   </data>
+  <data name="LanguageSettings" xml:space="preserve">
+    <value>Текущий язык русский.</value>
+    <comment/>
+  </data>
 </root>

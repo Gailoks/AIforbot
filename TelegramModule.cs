@@ -8,6 +8,8 @@ using TelegramAIBot.Telemetry;
 using Microsoft.Extensions.Localization;
 using TelegramAIBot.User;
 using System.Collections.Concurrent;
+using Telegram.Bot.Types.ReplyMarkups;
+using System.Globalization;
 
 
 namespace TelegramAIBot;
@@ -33,7 +35,7 @@ internal class TelegramModule(IAIClient aiClient, ITelemetryStorage telemetry, I
     [TelegramSequence(typeof(CommandCondition), "help")]
     public async IAsyncEnumerator<WaitCondition> ProcessCommandHelpAsync(TGMessage message, SequenceTrigger trigger)
     {
-        await Client.SendTextMessageAsync(message.Chat, _localizer.Get(message.GetUserLocale(), "HelpContent"));
+        await Client.SendTextMessageAsync(message.Chat, _localizer.Get((await _userRepository.GetAsync(message.From!.Id)).CultureInfo, "HelpContent"));
         yield break;
     }
 
@@ -54,6 +56,32 @@ internal class TelegramModule(IAIClient aiClient, ITelemetryStorage telemetry, I
         await Client.SendTextMessageAsync(userId, _localizer.Get((await _userRepository.GetAsync(userId)).CultureInfo, "SystemPromptSet"));
     }
 
+    [TelegramSequence(typeof(CommandCondition), "language")]
+    public async IAsyncEnumerator<WaitCondition> ProcessCommandLanguageAsync(TGMessage message, SequenceTrigger trigger)
+    {
+        InlineKeyboardMarkup keyboard = new[]
+        {
+            new[]
+            {
+                InlineKeyboardButton.WithCallbackData("en"),
+                InlineKeyboardButton.WithCallbackData("ru")
+            }
+
+        };
+        long userId = message.From!.Id;
+        var messageId = await Client.SendTextMessageAsync(userId, _localizer.Get((await _userRepository.GetAsync(userId)).CultureInfo, "LanguageSettings"), replyMarkup: keyboard);
+        while (true)
+        {
+            var languageWaitCondition = new ButtonCondition(messageId.MessageId);
+            yield return languageWaitCondition;
+            if ((await _userRepository.GetAsync(userId)).CultureInfo != new CultureInfo(languageWaitCondition.ButtonPressed))
+            {
+                await _userRepository.SetAsync(new(userId) { CultureInfo = new(languageWaitCondition.ButtonPressed) });
+                await Client.EditMessageTextAsync(userId, messageId.MessageId, _localizer.Get((await _userRepository.GetAsync(userId)).CultureInfo, "LanguageSettings"), replyMarkup:keyboard);
+            }
+        }
+    }
+
     [TelegramSequence(typeof(CommandCondition), "start")]
     public async IAsyncEnumerator<WaitCondition> ProcessCommandStartAsync(TGMessage message, SequenceTrigger trigger)
     {
@@ -68,7 +96,7 @@ internal class TelegramModule(IAIClient aiClient, ITelemetryStorage telemetry, I
             await old.WriteTelemetryAsync(_telemetry, userId);
         }
         _sessions.TryAdd(userId, new(_aiClient.CreateChat()));
-        await Client.SendTextMessageAsync(message.Chat, _localizer.Get(message.GetUserLocale(), "SessionBegin"));
+        await Client.SendTextMessageAsync(message.Chat, _localizer.Get(userProfile.CultureInfo, "SessionBegin"));
         yield break;
     }
 
