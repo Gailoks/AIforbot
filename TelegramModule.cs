@@ -4,20 +4,24 @@ using TelegramAIBot.Telegram.Sequences.Conditions;
 using Telegram.Bot;
 using TelegramAIBot.AI.Abstractions;
 using TGMessage = Telegram.Bot.Types.Message;
-using Message = TelegramAIBot.AI.Abstractions.Message;
-using Telegram.Bot.Types.Enums;
 using TelegramAIBot.Telemetry;
 using Microsoft.Extensions.Localization;
+using TelegramAIBot.User;
+using System.Collections.Concurrent;
 
 
 namespace TelegramAIBot;
 
-internal class TelegramModule(IAIClient aiClient, ITelemetryStorage telemetry, IStringLocalizer<TelegramModule> localizer) : ITelegramSequenceModule
+internal class TelegramModule(IAIClient aiClient, ITelemetryStorage telemetry, IStringLocalizer<TelegramModule> localizer, IUserRepository userRepository) : ITelegramSequenceModule
 {
     private readonly IAIClient _aiClient = aiClient;
-	private readonly ITelemetryStorage _telemetry = telemetry;
-	private readonly IStringLocalizer<TelegramModule> _localizer = localizer;
-	private TelegramClient? _client;
+    private readonly ITelemetryStorage _telemetry = telemetry;
+    private readonly IStringLocalizer<TelegramModule> _localizer = localizer;
+
+    private readonly ConcurrentDictionary<long, Session> _sessions = [];
+
+    private IUserRepository _userRepository = userRepository;
+    private TelegramClient? _client;
 
 
     private TelegramClient Client => _client ?? throw new InvalidOperationException("Bind before use");
@@ -36,60 +40,30 @@ internal class TelegramModule(IAIClient aiClient, ITelemetryStorage telemetry, I
     [TelegramSequence(typeof(CommandCondition), "start")]
     public async IAsyncEnumerator<WaitCondition> ProcessCommandStartAsync(TGMessage message, SequenceTrigger trigger)
     {
-		IAIChat? aiChat = null;
-
-		try
-		{
-			await Client.SendTextMessageAsync(message.Chat, _localizer.Get(message.GetUserLocale(), "SessionBegin"));
-			aiChat = _aiClient.CreateChat();
-
-
-			while (true)
-			{
-				var waitCondition = new TextMessageCondition();
-				yield return waitCondition;
-				string text = waitCondition.CapturedMessage.Text!;
-
-				if (text.StartsWith('!'))
-				{
-					aiChat.ModifyOptions(s => s with { SystemPrompt = text[1..] });
-					await Client.SendTextMessageAsync(message.Chat, _localizer.Get(message.GetUserLocale(), "SystemPromptSet"));
-					continue;
-				}
-
-				aiChat.Messages.Add(new Message(MessageRole.User, text));
-
-				var newMessageTask = aiChat.CreateChatCompletionAsync();
-
-				while (true)
-				{
-					await Client.SendChatActionAsync(waitCondition.CapturedMessage.Chat, ChatAction.Typing);
-					await Task.WhenAny(newMessageTask, Task.Delay(4000));
-					if (newMessageTask.IsCompleted)
-						break;
-				}
-
-				try
-				{
-					await Client.SendTextMessageAsync(message.Chat, newMessageTask.Result.Content, parseMode: ParseMode.Markdown);
-				}
-				catch
-				{
-					await Client.SendTextMessageAsync(message.Chat, newMessageTask.Result.Content);
-				}
-			}
-		}
-		finally
-		{
-			if (aiChat is not null)
-			{
-				var entry = new Dictionary<string, object?>()
-				{
-					["messages"] = aiChat.Messages.Select(s => new { role = s.Role, content = s.Content }).ToArray(),
-					["system"] = aiChat.Options.SystemPrompt
-				};
-				await _telemetry.CreateEntryAsync(message.Chat.Id.ToString(), new TelemetryEntry(entry));
-			}
-		}
+        long userId = message.From!.Id;
+        if (!await _userRepository.ContainsAsync(userId))
+        {
+            await _userRepository.SetAsync(new(userId) { CultureInfo = message.GetUserLocale() });
+        }
+        var userProfile = await _userRepository.GetAsync(userId);
+        if (_sessions.TryRemove(userId, out var old))
+        {
+            await old.WriteTelemetryAsync(_telemetry, userId);
+        }
+        _sessions.TryAdd(userId, new(_aiClient.CreateChat()));
+        await Client.SendTextMessageAsync(message.Chat, _localizer.Get(message.GetUserLocale(), "SessionBegin"));
+        yield break;
     }
+
+
+    [TelegramSequence(typeof(TextMessageCondition))]
+    public async IAsyncEnumerator<WaitCondition> ProcessTextMessage(TGMessage message, SequenceTrigger trigger)
+    {
+        long userId = message.From!.Id;
+        if (_sessions.TryGetValue(userId, out var session) == false)
+            yield break;
+        await Client.SendTextMessageAsync(userId, await session.AskAsync(message.Text!)); // TODO: for other types
+    }
+
+
 }

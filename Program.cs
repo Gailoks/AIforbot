@@ -9,6 +9,8 @@ using TomLonghurst.ReadableTimeSpan;
 using TelegramAIBot.AI.Abstractions;
 using TelegramAIBot.Telegram.Sequences;
 using TelegramAIBot.Telemetry;
+using TelegramAIBot.UserData;
+using TelegramAIBot.User;
 
 namespace TelegramAIBot
 {
@@ -34,7 +36,8 @@ namespace TelegramAIBot
                 .AddSingleton<ISequenceRepository, ReflectionSequenceRepository>()
                 .AddTransient<ITelegramEventHandler, SequenceProcessor>()
                 .AddSingleton<ITelegramSequenceModule, TelegramModule>()
-
+                .AddSingleton<IUserRepository, UserRamRepository>()
+                
                 .AddLogging(sb => sb.AddConsole().SetMinimumLevel(LogLevel.Trace))
 
                 .Configure<TelegramClient.Options>(config.GetSection("Telegram"))
