@@ -7,14 +7,16 @@ using TGMessage = Telegram.Bot.Types.Message;
 using Message = TelegramAIBot.AI.Abstractions.Message;
 using Telegram.Bot.Types.Enums;
 using TelegramAIBot.Telemetry;
+using Microsoft.Extensions.Localization;
 
 
 namespace TelegramAIBot;
 
-internal class TelegramModule(IAIClient aiClient, ITelemetryStorage telemetry) : ITelegramSequenceModule
+internal class TelegramModule(IAIClient aiClient, ITelemetryStorage telemetry, IStringLocalizer<TelegramModule> localizer) : ITelegramSequenceModule
 {
     private readonly IAIClient _aiClient = aiClient;
 	private readonly ITelemetryStorage _telemetry = telemetry;
+	private readonly IStringLocalizer<TelegramModule> _localizer = localizer;
 	private TelegramClient? _client;
 
 
@@ -27,7 +29,7 @@ internal class TelegramModule(IAIClient aiClient, ITelemetryStorage telemetry) :
     [TelegramSequence(typeof(CommandCondition), "help")]
     public async IAsyncEnumerator<WaitCondition> ProcessCommandHelpAsync(TGMessage message, SequenceTrigger trigger)
     {
-        await Client.SendTextMessageAsync(message.Chat, "Available commands:\nstart - start new chat session\nhelp - see list of commands");
+        await Client.SendTextMessageAsync(message.Chat, _localizer.Get(message.GetUserLocale(), "HelpContent"));
         yield break;
     }
 
@@ -38,7 +40,7 @@ internal class TelegramModule(IAIClient aiClient, ITelemetryStorage telemetry) :
 
 		try
 		{
-			await Client.SendTextMessageAsync(message.Chat, "New session started, to start new use /start.\nTo set system prompt start your message with '!'");
+			await Client.SendTextMessageAsync(message.Chat, _localizer.Get(message.GetUserLocale(), "SessionBegin"));
 			aiChat = _aiClient.CreateChat();
 
 
@@ -51,7 +53,7 @@ internal class TelegramModule(IAIClient aiClient, ITelemetryStorage telemetry) :
 				if (text.StartsWith('!'))
 				{
 					aiChat.ModifyOptions(s => s with { SystemPrompt = text[1..] });
-					await Client.SendTextMessageAsync(message.Chat, "System prompt set");
+					await Client.SendTextMessageAsync(message.Chat, _localizer.Get(message.GetUserLocale(), "SystemPromptSet"));
 					continue;
 				}
 
