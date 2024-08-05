@@ -133,4 +133,8 @@
     <value>Send new system prompt.</value>
     <comment/>
   </data>
+  <data name="LanguageSettings" xml:space="preserve">
+    <value>Current language is English.</value>
+    <comment/>
+  </data>
 </root>
