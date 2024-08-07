@@ -9,7 +9,6 @@ using Microsoft.Extensions.Localization;
 using TelegramAIBot.User;
 using System.Collections.Concurrent;
 using Telegram.Bot.Types.ReplyMarkups;
-using System.Globalization;
 using Telegram.Bot.Types.Enums;
 
 
@@ -62,12 +61,8 @@ internal class TelegramModule(IAIClient aiClient, ITelemetryStorage telemetry, I
     {
         InlineKeyboardMarkup keyboard = new[]
         {
-            new[]
-            {
                 InlineKeyboardButton.WithCallbackData("en"),
                 InlineKeyboardButton.WithCallbackData("ru")
-            }
-
         };
         long userId = message.From!.Id;
         var messageId = await Client.SendTextMessageAsync(userId, _localizer.Get((await _userRepository.GetAsync(userId)).CultureInfo, "LanguageSettings"), replyMarkup: keyboard);
@@ -75,10 +70,10 @@ internal class TelegramModule(IAIClient aiClient, ITelemetryStorage telemetry, I
         {
             var languageWaitCondition = new ButtonCondition(messageId.MessageId);
             yield return languageWaitCondition;
-            if ((await _userRepository.GetAsync(userId)).CultureInfo != new CultureInfo(languageWaitCondition.ButtonPressed))
+            if ((await _userRepository.GetAsync(userId)).CultureInfo.ToString() != languageWaitCondition.ButtonPressed)
             {
                 await _userRepository.SetAsync(new(userId) { CultureInfo = new(languageWaitCondition.ButtonPressed) });
-                await Client.EditMessageTextAsync(userId, messageId.MessageId, _localizer.Get((await _userRepository.GetAsync(userId)).CultureInfo, "LanguageSettings"), replyMarkup:keyboard);
+                await Client.EditMessageTextAsync(userId, messageId.MessageId, _localizer.Get((await _userRepository.GetAsync(userId)).CultureInfo, "LanguageSettings"), replyMarkup: keyboard);
             }
         }
     }
@@ -107,19 +102,20 @@ internal class TelegramModule(IAIClient aiClient, ITelemetryStorage telemetry, I
     {
         long userId = message.From!.Id;
         if (_sessions.TryGetValue(userId, out var session) == false)
+
             yield break;
 
-		var question = message.Text!;
-		var task = session.AskAsync(question);
+        var question = message.Text!;
+        var task = session.AskAsync(question);
 
-		while (true)
-		{
-			await Client.SendChatActionAsync(userId, ChatAction.Typing);
-			await Task.WhenAny(task, Task.Delay(4000));
-			if (task.IsCompleted)
-				break;
-		}
+        while (true)
+        {
+            await Client.SendChatActionAsync(userId, ChatAction.Typing);
+            await Task.WhenAny(task, Task.Delay(4000));
+            if (task.IsCompleted)
+                break;
+        }
 
-		await Client.SendTextMessageAsync(userId, task.Result); // TODO: for other types
+        await Client.SendTextMessageAsync(userId, task.Result); // TODO: for other types
     }
 }
