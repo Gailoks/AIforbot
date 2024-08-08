@@ -32,5 +32,10 @@ namespace TelegramAIBot
 				return CultureInfo.InvariantCulture;
 			else return new(raw);
 		}
+
+		public static void ExtractUserId(this Message message, out long userId)
+		{
+			userId = message.From!.Id;
+		}
 	}
 }
