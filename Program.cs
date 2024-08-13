@@ -11,6 +11,8 @@ using TelegramAIBot.Telegram.Sequences;
 using TelegramAIBot.Telemetry;
 using TelegramAIBot.UserData;
 using TelegramAIBot.User;
+using TelegramAIBot.DataBase;
+using Microsoft.EntityFrameworkCore;
 
 namespace TelegramAIBot
 {
@@ -37,6 +39,7 @@ namespace TelegramAIBot
                 .AddTransient<ITelegramEventHandler, SequenceProcessor>()
                 .AddSingleton<ITelegramSequenceModule, TelegramModule>()
                 .AddSingleton<IUserRepository, UserRamRepository>()
+                .AddDbContext<UserContextDB>((options) => options.UseNpgsql())
                 
                 .AddLogging(sb => sb.AddConsole().SetMinimumLevel(LogLevel.Trace))
 
